@@ -6,15 +6,7 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-gradient-to-br from-sky-100 via-white to-cyan-100 flex items-center justify-center p-6">
       <div className="max-w-4xl w-full bg-white rounded-3xl shadow-2xl p-12 text-center">
-        <div className="mb-8">
-          <div className="text-7xl mb-4">🎯</div>
-          <h1 className="text-4xl font-bold text-sky-700 mb-4">
-            انتخاب نسخه نمایش
-          </h1>
-          <p className="text-gray-600 text-lg">
-            کدام نسخه از نمایش را می‌خواهید ببینید؟
-          </p>
-        </div>
+       
         
         <div className="grid md:grid-cols-2 gap-6">
           {/* نسخه بالون */}
