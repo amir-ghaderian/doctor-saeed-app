@@ -32,12 +32,38 @@ export default function BalloonVersion() {
     },
   ];
 
-  const positions: Position[] = [
-    { top: "-20px", left: "50%", transform: "translateX(-50%)", arrow: "bottom" },
-    { bottom: "-20px", left: "50%", transform: "translateX(-50%)", arrow: "top" },
-    { top: "50%", left: "-30px", transform: "translateY(-50%)", arrow: "right" },
-    { top: "50%", right: "-30px", transform: "translateY(-50%)", arrow: "left" },
-  ];
+  // موقعیت‌های متفاوت برای موبایل و دسکتاپ
+  const getPositions = (isMobile: boolean): Position[] => {
+    if (isMobile) {
+      return [
+        { top: "-20px", left: "50%", transform: "translateX(-50%)", arrow: "bottom" },
+        { bottom: "-20px", left: "50%", transform: "translateX(-50%)", arrow: "top" },
+        { bottom: "-20px", left: "50%", transform: "translateX(-50%)", arrow: "top" },
+        { bottom: "-20px", left: "50%", transform: "translateX(-50%)", arrow: "top" },
+      ];
+    }
+    return [
+      { top: "-20px", left: "50%", transform: "translateX(-50%)", arrow: "bottom" },
+      { bottom: "-20px", left: "50%", transform: "translateX(-50%)", arrow: "top" },
+      { top: "50%", left: "-30px", transform: "translateY(-50%)", arrow: "right" },
+      { top: "50%", right: "-30px", transform: "translateY(-50%)", arrow: "left" },
+    ];
+  };
+
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  const positions = getPositions(isMobile);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -70,24 +96,26 @@ export default function BalloonVersion() {
   };
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-sky-100 via-white to-cyan-100 flex items-center justify-center p-6">
-      <Link href="/" className="fixed top-4 left-4 z-50">
-        <button className="bg-white/90 backdrop-blur-sm px-5 py-2.5 rounded-xl shadow-lg hover:shadow-xl transition-all flex items-center gap-2 text-gray-700 hover:text-sky-600">
-          <span>←</span> برگشت به صفحه اصلی
+    <main className="min-h-screen bg-gradient-to-br from-sky-100 via-white to-cyan-100 flex items-center justify-center p-4 md:p-6">
+      <Link href="/" className="fixed top-3 left-3 md:top-4 md:left-4 z-50">
+        <button className="bg-white/90 backdrop-blur-sm px-3 py-2 md:px-5 md:py-2.5 rounded-xl shadow-lg hover:shadow-xl transition-all flex items-center gap-2 text-sm md:text-base text-gray-700 hover:text-sky-600">
+          <span>←</span> <span className="hidden xs:inline">برگشت به صفحه اصلی</span>
+          <span className="xs:hidden">بازگشت</span>
         </button>
       </Link>
 
-      <div className="max-w-4xl w-full bg-white rounded-3xl shadow-2xl overflow-hidden">
-        <div className="grid md:grid-cols-2 gap-8 items-center p-8">
+      <div className="max-w-4xl w-full bg-white rounded-2xl md:rounded-3xl shadow-2xl overflow-hidden">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8 items-center p-4 md:p-8">
+          {/* بخش تصویر و بادکنک‌ها - تغییر ترتیب در موبایل */}
           <motion.div
             initial={{ opacity: 0, x: -80 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 1 }}
-            className="flex justify-center"
+            className={`flex justify-center ${isMobile ? 'order-first' : 'order-none'}`}
           >
-            <div className="relative inline-block">
+            <div className="relative inline-block w-full max-w-[280px] md:max-w-none">
               <div
-                className="w-80 h-96 rounded-2xl shadow-xl bg-cover bg-center border-4 border-sky-400"
+                className="w-full h-72 md:h-96 rounded-2xl shadow-xl bg-cover bg-center border-4 border-sky-400"
                 style={{
                   backgroundImage: "url('/pic/eshak.jpg')",
                   backgroundPosition: "center 20%",
@@ -101,17 +129,19 @@ export default function BalloonVersion() {
                   animate={{ opacity: 1, scale: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.3, y: -20 }}
                   transition={{ duration: 0.5 }}
-                  className="absolute z-20 max-w-[240px]"
+                  className="absolute z-20"
                   style={{
                     top: currentPosition.top,
                     bottom: currentPosition.bottom,
                     left: currentPosition.left,
                     right: currentPosition.right,
                     transform: currentPosition.transform,
+                    maxWidth: isMobile ? '180px' : '240px',
+                    width: isMobile ? '80%' : 'auto',
                   }}
                 >
-                  <div className="bg-white rounded-xl px-5 py-3.5 shadow-lg border-2 border-sky-300 relative">
-                    <p className="text-gray-800 text-sm font-medium leading-relaxed text-center">
+                  <div className="bg-white rounded-xl px-3 py-2.5 md:px-5 md:py-3.5 shadow-lg border-2 border-sky-300 relative">
+                    <p className="text-gray-800 text-xs md:text-sm font-medium leading-relaxed text-center">
                       {currentQuote.text}
                     </p>
                     <div className={`absolute ${getArrowClasses()} w-0 h-0 ${getArrowBorder()}`} />
@@ -119,41 +149,47 @@ export default function BalloonVersion() {
                 </motion.div>
               </AnimatePresence>
 
-              <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2 flex gap-2">
+              {/* نقطه‌های پایین - همیشه در پایین */}
+              <div className="absolute -bottom-6 md:-bottom-8 left-1/2 transform -translate-x-1/2 flex gap-1.5 md:gap-2">
                 {quotes.map((_, index) => (
                   <div
                     key={index}
-                    className={`w-2.5 h-2.5 rounded-full transition-all duration-300 ${
-                      index === quoteIndex ? 'bg-sky-600 w-8' : 'bg-sky-200'
+                    className={`rounded-full transition-all duration-300 ${
+                      index === quoteIndex ? 'bg-sky-600 w-6 md:w-8' : 'bg-sky-200'
                     }`}
+                    style={{ height: isMobile ? '8px' : '10px', width: index === quoteIndex ? (isMobile ? '24px' : '32px') : (isMobile ? '8px' : '10px') }}
                   />
                 ))}
               </div>
             </div>
           </motion.div>
 
+          {/* بخش متن - تغییر در موبایل */}
           <motion.div
             dir="rtl"
             initial={{ opacity: 0, y: 40 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.5, duration: 1 }}
+            className="text-center md:text-right"
           >
-            <h1 className="text-4xl font-bold text-sky-700 mb-6">خوش آمدید</h1>
-            <div className="space-y-4">
-              <div className="flex items-start gap-3">
-                <div className="w-2 h-2 bg-sky-500 rounded-full mt-2.5 flex-shrink-0" />
-                <p className="text-gray-600 leading-relaxed">
+            <h1 className="text-2xl md:text-4xl font-bold text-sky-700 mb-4 md:mb-6">
+              خوش آمدید
+            </h1>
+            <div className="space-y-3 md:space-y-4">
+              <div className={`flex items-start gap-3 ${isMobile ? 'justify-center' : ''}`}>
+                <div className="w-1.5 h-1.5 md:w-2 md:h-2 bg-sky-500 rounded-full mt-2 flex-shrink-0" />
+                <p className="text-gray-600 text-sm md:text-base leading-relaxed">
                   در این مسیر همراه شما هستیم تا بهترین نسخه خودتان را بسازید.
                 </p>
               </div>
-              <div className="flex items-start gap-3">
-                <div className="w-2 h-2 bg-sky-500 rounded-full mt-2.5 flex-shrink-0" />
-                <p className="text-gray-600 leading-relaxed">
+              <div className={`flex items-start gap-3 ${isMobile ? 'justify-center' : ''}`}>
+                <div className="w-1.5 h-1.5 md:w-2 md:h-2 bg-sky-500 rounded-full mt-2 flex-shrink-0" />
+                <p className="text-gray-600 text-sm md:text-base leading-relaxed">
                   با روش‌های علمی و عملی، خودتان را بهتر بشناسید.
                 </p>
               </div>
             </div>
-            <button className="mt-6 px-8 py-4 bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-600 hover:to-cyan-600 transition-all text-white rounded-xl text-lg font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5">
+            <button className="mt-4 md:mt-6 px-6 md:px-8 py-3 md:py-4 bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-600 hover:to-cyan-600 transition-all text-white rounded-xl text-sm md:text-lg font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 w-full md:w-auto">
               شروع آموزش
             </button>
           </motion.div>

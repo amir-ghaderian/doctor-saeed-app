@@ -6,3 +6,16 @@ body {
   padding: 0;
   direction: rtl;
 }
+@media (max-width: 360px) {
+  .type-version .type-animation {
+    font-size: 14px !important;
+    line-height: 1.6 !important;
+  }
+}
+
+/* انیمیشن نرم‌تر در موبایل */
+@media (max-width: 768px) {
+  .type-version .motion-div {
+    transition-duration: 0.4s !important;
+  }
+}
