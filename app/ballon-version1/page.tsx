@@ -79,31 +79,31 @@ export default function BalloonVersion() {
               />
 
               {isMobile ? (
-                // حالت موبایل: بادکنک در سمت راست بالای عکس (نزدیک دهان دکتر)
-                <div className="absolute top-[15%] -right-6 transform -translate-y-1/2 z-20 w-[180px]">
+                // حالت موبایل: بادکنک در سمت چپ پایین عکس (نزدیک دهان دکتر)
+                <div className="absolute bottom-[25%] -left-4 transform translate-y-1/2 z-20 w-[170px]">
                   <AnimatePresence mode="wait">
                     <motion.div
                       key={quoteIndex}
-                      initial={{ opacity: 0, x: 15, scale: 0.9 }}
+                      initial={{ opacity: 0, x: -15, scale: 0.9 }}
                       animate={{ opacity: 1, x: 0, scale: 1 }}
-                      exit={{ opacity: 0, x: -15, scale: 0.9 }}
+                      exit={{ opacity: 0, x: 15, scale: 0.9 }}
                       transition={{ duration: 0.5 }}
                     >
                       <div className="bg-white rounded-xl px-3 py-2.5 shadow-lg border-2 border-sky-300 relative">
                         <p className="text-gray-800 text-[10px] sm:text-xs font-medium leading-relaxed text-center">
                           {currentQuote.text}
                         </p>
-                        {/* فلش چپ (نشانه به سمت دهان دکتر) */}
-                        <div className="absolute -left-[10px] top-1/2 -translate-y-1/2 w-0 h-0 
+                        {/* فلش راست (نشانه به سمت دهان دکتر) */}
+                        <div className="absolute -right-[10px] top-1/2 -translate-y-1/2 w-0 h-0 
                           border-t-[8px] border-t-transparent 
                           border-b-[8px] border-b-transparent 
-                          border-r-[12px] border-r-white" />
+                          border-l-[12px] border-l-white" />
                       </div>
                     </motion.div>
                   </AnimatePresence>
                 </div>
               ) : (
-                // حالت دسکتاپ: بادکنک سمت راست عکس - نشانه به سمت دکتر
+                // حالت دسکتاپ: بادکنک سمت راست عکس
                 <div className="absolute top-1/2 -right-8 transform -translate-y-1/2 z-20 w-[200px]">
                   <AnimatePresence mode="wait">
                     <motion.div
