@@ -161,9 +161,16 @@ export default function BalloonVersion() {
                 </p>
               </div>
             </div>
-            <button className="mt-4 md:mt-6 px-6 md:px-8 py-3 md:py-4 bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-600 hover:to-cyan-600 transition-all text-white rounded-xl text-sm md:text-lg font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 w-full md:w-auto">
-              شروع مسیر سلامت روان
-            </button>
+            <Link href="/mental-health-form">
+  <button className="mt-4 md:mt-6 px-6 md:px-8 py-3 md:py-4 bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-600 hover:to-cyan-600 transition-all text-white rounded-xl text-sm md:text-lg font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 w-full md:w-auto">
+   ورود کاربر /ثبت نام
+  </button>
+</Link>
+<Link href="/games">
+<button className="mt-4 mr-8 md:mt-6 px-6 md:px-8 py-3 md:py-4 bg-gradient-to-r from-sky-500 to-cyan-500 hover:from-sky-600 hover:to-cyan-600 transition-all text-white rounded-xl text-sm md:text-lg font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 w-full md:w-auto">
+  تور مجازی
+  </button>
+  </Link>
           </motion.div>
         </div>
       </div>
