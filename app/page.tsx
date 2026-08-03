@@ -73,7 +73,7 @@ export default function BalloonVersion() {
               <div
                 className="w-full h-72 md:h-96 rounded-2xl shadow-xl bg-cover bg-center border-4 border-sky-400 overflow-hidden"
                 style={{
-                  backgroundImage: "url('/pic/eshak2.png')",
+                  backgroundImage: "url('/pic/hero.png')",
                   backgroundPosition: "center 20%",
                 }}
               />
