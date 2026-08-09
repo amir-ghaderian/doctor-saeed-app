@@ -1,6 +1,5 @@
 import { Game } from "../types/game";
 
-
 type GameCategory = {
   id: string;
   title: string;
@@ -8,61 +7,61 @@ type GameCategory = {
   games: Game[];
 };
 
-
 export const gameCategories: GameCategory[] = [
-
   {
-    id: "memory",
-    title: "تقویت حافظه",
-    description:
-      "تمرین‌هایی برای تقویت حافظه کوتاه‌مدت و یادآوری",
-
+    id: "table",
+    title: "جدول",
+    description: "بازی جدول برای تقویت تمرکز، حافظه و حل مسئله",
     games: [
-
       {
         id: "table",
         title: "بازی جدول",
-        description:
-          "تقویت حل مسئله و برنامه‌ریزی ذهنی",
+        description: "یک بازی مرحله‌ای برای تقویت تمرکز و حل مسئله",
         icon: "🧩",
-        style:
-          "from-blue-100 to-cyan-100 border-blue-200",
+        style: "from-blue-100 to-cyan-100 border-blue-200",
       },
-
-
-      {
-        id: "memory",
-        title: "حافظه",
-        description:
-          "تمرین یادآوری و نگهداری اطلاعات",
-        icon: "🧠",
-        style:
-          "from-green-100 to-emerald-100 border-green-200",
-      },
-
     ],
   },
-
 
   {
-    id: "attention",
-    title: "تمرکز و توجه",
-    description:
-      "تمرین افزایش توجه پایدار و کنترل تمرکز",
-
-    games: [
-
-      {
-        id: "attention",
-        title: "تمرکز",
-        description:
-          "افزایش توجه و دقت",
-        icon: "🎯",
-        style:
-          "from-purple-100 to-pink-100 border-purple-200",
-      },
-
-    ],
+    id: "thinking",
+    title: "بازی‌های فکری",
+    description: "مجموعه‌ای از بازی‌ها برای تقویت مهارت‌های شناختی",
+    games: [],
   },
 
+  {
+    id: "mental-health",
+    title: "مدیریت سلامت روان",
+    description: "تمرین‌ها و بازی‌هایی برای شناخت و مدیریت بهتر سلامت روان",
+    games: [],
+  },
+
+  {
+    id: "personal-development",
+    title: "رشد و توسعه فردی",
+    description: "تمرین‌هایی برای رشد فردی، خودشناسی و تقویت مهارت‌های فردی",
+    games: [],
+  },
+
+  {
+    id: "management",
+    title: "آموزش مدیریت",
+    description: "محتوای آموزشی و تمرین‌های مرتبط با مهارت‌های مدیریت",
+    games: [],
+  },
+
+  {
+    id: "sports",
+    title: "ارکان ورزش",
+    description: "آموزش و تمرین درباره جنبه‌های مختلف ورزش و عملکرد ورزشی",
+    games: [],
+  },
+
+  {
+    id: "football",
+    title: "فوتبال",
+    description: "بازی‌ها و تمرین‌های مرتبط با فوتبال و روان‌شناسی ورزشی",
+    games: [],
+  },
 ];
