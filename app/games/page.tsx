@@ -1,9 +1,7 @@
 import Link from "next/link";
-import GameCard from "./components/GameCard";
 import { gameCategories } from "./data/games";
 
 const categoryIcons: Record<string, string> = {
-  table: "🧩",
   thinking: "🧠",
   "mental-health": "❤️",
   "personal-development": "🌱",
@@ -13,7 +11,6 @@ const categoryIcons: Record<string, string> = {
 };
 
 const categoryStyles: Record<string, string> = {
-  table: "from-blue-50 to-cyan-50 border-blue-200",
   thinking: "from-purple-50 to-indigo-50 border-purple-200",
   "mental-health": "from-rose-50 to-pink-50 border-rose-200",
   "personal-development": "from-green-50 to-emerald-50 border-green-200",
@@ -23,102 +20,105 @@ const categoryStyles: Record<string, string> = {
 };
 
 export default function GamesPage() {
+  const visibleCategories = gameCategories.filter(
+    (category) => category.id !== "table"
+  );
+
   return (
     <main
       dir="rtl"
-      className="min-h-screen bg-gradient-to-br from-slate-50 via-cyan-50 to-blue-100"
+      className="min-h-screen overflow-x-hidden bg-gradient-to-br from-slate-50 via-cyan-50 to-blue-100"
     >
-      {/* Header */}
-      <section className="max-w-7xl mx-auto px-6 pt-12">
-        <div className="bg-white rounded-3xl shadow-xl border p-10 md:p-14 text-center">
-          <div className="w-24 h-24 mx-auto rounded-full bg-gradient-to-br from-cyan-400 to-blue-600 flex items-center justify-center text-5xl shadow-lg">
+      <section className="mx-auto max-w-7xl px-4 pt-8 sm:px-6 sm:pt-12">
+        <div className="rounded-3xl border bg-white p-6 text-center shadow-xl sm:p-10 md:p-14">
+          <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-cyan-400 to-blue-600 text-4xl shadow-lg sm:h-24 sm:w-24 sm:text-5xl">
             🧠
           </div>
 
-          <h1 className="mt-8 text-4xl md:text-5xl font-bold text-slate-800">
+          <h1 className="mt-6 text-3xl font-bold text-slate-800 sm:mt-8 sm:text-4xl md:text-5xl">
             مرکز تمرین‌های شناختی
           </h1>
 
-          <p className="mt-5 text-lg text-slate-600 max-w-2xl mx-auto leading-8">
+          <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-slate-600 sm:mt-5 sm:text-lg sm:leading-8">
             به مرکز بازی‌ها و تمرین‌های دکتر سعید خوش آمدید
           </p>
         </div>
       </section>
 
-      {/* Lobby */}
-      <section className="max-w-7xl mx-auto px-6 py-12">
-        <div className="mb-10 text-center">
-          <h2 className="text-3xl md:text-4xl font-bold text-slate-800">
+      <section className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-12">
+        <div className="mb-7 text-center sm:mb-10">
+          <h2 className="text-2xl font-bold text-slate-800 sm:text-3xl md:text-4xl">
             لابی بازی‌ها
           </h2>
 
-          <p className="mt-3 text-slate-500">
+          <p className="mt-2 text-sm text-slate-500 sm:mt-3 sm:text-base">
             بخش مورد نظر خود را انتخاب کنید
           </p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {gameCategories.map((category) => (
+        <div className="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-3 xl:grid-cols-4">
+          {visibleCategories.map((category) => (
             <Link
               key={category.id}
               href={`/games/${category.id}`}
-              className="group"
+              className="group min-w-0"
             >
               <div
                 className={`
-                  h-full
-                  min-h-[310px]
-                  rounded-3xl
+                  flex h-full min-h-[220px] flex-col
+                  rounded-2xl
                   bg-gradient-to-br
                   ${categoryStyles[category.id] ?? "from-white to-slate-50 border-slate-200"}
                   border
-                  p-6
+                  p-3
                   shadow-md
                   transition-all
                   duration-300
-                  hover:-translate-y-2
-                  hover:shadow-2xl
-                  group-hover:scale-[1.01]
+                  hover:-translate-y-1
+                  hover:shadow-xl
+                  sm:min-h-[280px]
+                  sm:rounded-3xl
+                  sm:p-5
+                  md:p-6
                 `}
               >
-                <div className="flex flex-col items-center text-center">
+                <div className="flex flex-1 flex-col items-center text-center">
                   <div
                     className="
-                      w-20
-                      h-20
-                      rounded-2xl
+                      flex h-14 w-14 shrink-0 items-center justify-center
+                      rounded-xl
                       bg-white/80
-                      backdrop-blur
-                      flex
-                      items-center
-                      justify-center
-                      text-5xl
+                      text-3xl
                       shadow-sm
+                      backdrop-blur
                       transition-transform
                       duration-300
                       group-hover:scale-110
+                      sm:h-[72px] sm:w-[72px] sm:rounded-2xl sm:text-4xl
                     "
                   >
                     {categoryIcons[category.id]}
                   </div>
 
-                  <h3 className="mt-6 text-2xl font-bold text-slate-800">
+                  <h3 className="mt-4 line-clamp-1 text-base font-bold text-slate-800 sm:mt-5 sm:text-xl md:text-2xl">
                     {category.title}
                   </h3>
 
-                  <p className="mt-4 text-sm text-slate-600 leading-7">
+                  <p className="mt-2 line-clamp-2 text-xs leading-5 text-slate-600 sm:mt-3 sm:text-sm sm:leading-6">
                     {category.description}
                   </p>
 
-                  {category.games.length > 0 ? (
-                    <div className="mt-6 px-5 py-2 rounded-xl bg-white/80 text-sm font-semibold text-slate-700">
-                      {category.games.length} بازی
-                    </div>
-                  ) : (
-                    <div className="mt-6 px-5 py-2 rounded-xl bg-white/70 text-sm text-slate-500">
-                      ورود به بخش
-                    </div>
-                  )}
+                  <div className="mt-auto pt-4">
+                    {category.games.length > 0 ? (
+                      <div className="rounded-lg bg-white/80 px-3 py-1.5 text-[11px] font-semibold text-slate-700 sm:rounded-xl sm:px-4 sm:py-2 sm:text-sm">
+                        {category.games.length} بازی
+                      </div>
+                    ) : (
+                      <div className="rounded-lg bg-white/70 px-3 py-1.5 text-[11px] text-slate-500 sm:rounded-xl sm:px-4 sm:py-2 sm:text-sm">
+                        ورود به بخش
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </Link>
