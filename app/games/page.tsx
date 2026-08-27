@@ -28,27 +28,32 @@ export default function GamesPage() {
     <main
       dir="rtl"
       className="min-h-screen overflow-x-hidden bg-gradient-to-br from-slate-50 via-cyan-50 to-blue-100"
-    >
-      <section className="mx-auto max-w-7xl px-4 pt-8 sm:px-6 sm:pt-12">
-        <div className="rounded-3xl border bg-white p-6 text-center shadow-xl sm:p-10 md:p-14">
-          <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-cyan-400 to-blue-600 text-4xl shadow-lg sm:h-24 sm:w-24 sm:text-5xl">
-            🧠
-          </div>
-
-          <h1 className="mt-6 text-3xl font-bold text-slate-800 sm:mt-8 sm:text-4xl md:text-5xl">
-            مرکز تمرین‌های شناختی
-          </h1>
-
-          <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-slate-600 sm:mt-5 sm:text-lg sm:leading-8">
-            به مرکز بازی‌ها و تمرین‌های دکتر سعید خوش آمدید
-          </p>
-        </div>
-      </section>
+    ><section className="mx-auto max-w-7xl px-4 pt-6 sm:px-6 sm:pt-10">
+    <div className="rounded-3xl border border-slate-200 bg-white px-5 py-8 text-center shadow-xl sm:px-10 sm:py-12 md:px-14 md:py-14">
+      
+      <div className="mx-auto flex w-full max-w-[520px] items-center justify-center">
+        <img
+          src="/pic/logo.png"
+          alt="Tackle"
+          className="h-auto w-full max-w-[420px] object-contain drop-shadow-[0_10px_20px_rgba(15,23,42,0.18)] sm:max-w-[480px] md:max-w-[520px]"
+        />
+      </div>
+  
+      <h1 className="mt-6 text-2xl font-bold text-slate-800 sm:mt-8 sm:text-4xl md:text-5xl">
+        مرکز تمرین‌های شناختی
+      </h1>
+  
+      <p className="mx-auto mt-3 max-w-2xl text-sm leading-7 text-slate-600 sm:mt-5 sm:text-lg sm:leading-8">
+        به مرکز بازی‌ها و تمرین‌های تکل خوش آمدید
+      </p>
+  
+    </div>
+  </section>
 
       <section className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-12">
         <div className="mb-7 text-center sm:mb-10">
           <h2 className="text-2xl font-bold text-slate-800 sm:text-3xl md:text-4xl">
-            لابی بازی‌ها
+            لابی تکل
           </h2>
 
           <p className="mt-2 text-sm text-slate-500 sm:mt-3 sm:text-base">

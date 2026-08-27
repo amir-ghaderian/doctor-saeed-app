@@ -8,7 +8,7 @@ const games = [
     title: "بازی جدول",
     description: "تمرین حافظه، تمرکز و سرعت پردازش ذهنی",
     icon: "🧩",
-    href: "/games/table",
+    href: "/games/thinking/table",
   },
 ];
 
