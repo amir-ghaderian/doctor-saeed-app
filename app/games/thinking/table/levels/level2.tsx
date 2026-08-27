@@ -1,64 +1,21 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { motion } from "framer-motion";
-import {
-  getTableLevel,
-  checkTableWord,
-  isBonusWord,
-} from "../../../data/wordGames";
-import {
-  addBonusWord,
-  initialWordJar,
-  type WordJar,
-} from "../../../data/wordJar";
 
-const LEVEL_ID = 1;
-const TOTAL_LEVELS = 10;
-const WORD_JAR_KEY = "word-jar";
-const CURRENT_LEVEL_KEY = "table-current-level";
+const letters = ["س", "ا", "ر", "ت"];
 
-export default function Level1() {
-  const level = getTableLevel(LEVEL_ID);
+const targetWords = ["سر", "است", "راس"];
 
+const bonusWords = ["را", "تر", "رس", "تار", "سار", "راست", "سرا"];
+
+export default function Level2() {
   const [selectedLetters, setSelectedLetters] = useState<string[]>([]);
   const [foundWords, setFoundWords] = useState<string[]>([]);
   const [bonusFoundWords, setBonusFoundWords] = useState<string[]>([]);
-  const [wordJar, setWordJar] = useState<WordJar>(initialWordJar);
+  const [coins, setCoins] = useState(0);
   const [showWin, setShowWin] = useState(false);
   const [message, setMessage] = useState("");
-
-  useEffect(() => {
-    const savedJar = localStorage.getItem(WORD_JAR_KEY);
-
-    if (savedJar) {
-      try {
-        setWordJar(JSON.parse(savedJar));
-      } catch {
-        setWordJar(initialWordJar);
-      }
-    }
-
-    localStorage.setItem(CURRENT_LEVEL_KEY, String(LEVEL_ID));
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem(WORD_JAR_KEY, JSON.stringify(wordJar));
-  }, [wordJar]);
-
-  if (!level) {
-    return (
-      <main
-        dir="rtl"
-        className="flex min-h-screen items-center justify-center bg-slate-950 text-white"
-      >
-        <p>مرحله پیدا نشد.</p>
-      </main>
-    );
-  }
-
-  const letters = level.letters;
-  const targetWords = level.words;
 
   const currentWord = selectedLetters.join("");
 
@@ -98,7 +55,7 @@ export default function Level1() {
       return;
     }
 
-    if (checkTableWord(LEVEL_ID, currentWord)) {
+    if (targetWords.includes(currentWord)) {
       const updatedWords = [...foundWords, currentWord];
 
       setFoundWords(updatedWords);
@@ -114,24 +71,16 @@ export default function Level1() {
       return;
     }
 
-    if (isBonusWord(LEVEL_ID, currentWord)) {
-      const updatedJar = addBonusWord(wordJar, currentWord);
-
-      setWordJar(updatedJar);
+    if (bonusWords.includes(currentWord)) {
       setBonusFoundWords((current) => [...current, currentWord]);
+      setCoins((current) => current + 1);
       setSelectedLetters([]);
-      setMessage("کلمه جدید پیدا کردی! 🪙 +۱ سکه");
-
+      setMessage("کلمه جایزه پیدا کردی! 🪙 +۱ سکه");
       return;
     }
 
     setMessage("این کلمه در این مرحله نیست.");
     setSelectedLetters([]);
-  };
-
-  const goToNextLevel = () => {
-    localStorage.setItem(CURRENT_LEVEL_KEY, "2");
-    window.location.reload();
   };
 
   const progress =
@@ -152,7 +101,7 @@ export default function Level1() {
           </p>
 
           <h1 className="mt-1 text-3xl font-black sm:text-5xl">
-            مرحله اول
+            مرحله دوم
           </h1>
 
           <p className="mt-3 text-sm text-slate-400">
@@ -168,7 +117,7 @@ export default function Level1() {
             </p>
 
             <p className="mt-1 font-black">
-              ۱ از {TOTAL_LEVELS}
+              ۲ از ۱۰
             </p>
           </div>
 
@@ -188,7 +137,7 @@ export default function Level1() {
             </p>
 
             <p className="mt-1 font-black text-yellow-300">
-              🪙 {wordJar.coins}
+              🪙 {coins}
             </p>
           </div>
 
@@ -203,7 +152,7 @@ export default function Level1() {
             <div className="mb-8 flex min-h-[72px] min-w-[220px] items-center justify-center rounded-3xl border border-white/10 bg-white/[0.06] px-6 shadow-xl">
 
               {currentWord ? (
-                <span className="text-3xl font-black tracking-[0.2em]">
+                <span className="text-3xl font-black tracking-[0.2em] text-white">
                   {currentWord}
                 </span>
               ) : (
@@ -265,7 +214,7 @@ export default function Level1() {
                   animate={{ opacity: 1, y: 0 }}
                   className={`rounded-full px-5 py-3 text-sm font-bold ${
                     message.includes("درست") ||
-                    message.includes("جدید")
+                    message.includes("جایزه")
                       ? "bg-emerald-500/15 text-emerald-300"
                       : "bg-red-500/10 text-red-300"
                   }`}
@@ -362,7 +311,7 @@ export default function Level1() {
               </p>
 
               <p className="font-black text-yellow-300">
-                {wordJar.coins} سکه
+                {coins} سکه
               </p>
             </div>
 
@@ -370,16 +319,16 @@ export default function Level1() {
 
         </div>
 
-        {wordJar.words.length > 0 && (
+        {bonusFoundWords.length > 0 && (
           <div className="mx-auto mt-4 max-w-xl rounded-2xl border border-yellow-400/10 bg-yellow-400/5 p-4 text-center">
 
             <p className="mb-3 text-xs text-slate-500">
-              کلمات جدید کشف‌شده
+              کلمات جایزه کشف‌شده
             </p>
 
             <div className="flex flex-wrap justify-center gap-2">
 
-              {wordJar.words.map((word) => (
+              {bonusFoundWords.map((word) => (
                 <span
                   key={word}
                   className="rounded-full bg-yellow-400/10 px-4 py-2 text-sm font-bold text-yellow-300"
@@ -409,7 +358,7 @@ export default function Level1() {
             </div>
 
             <p className="mt-5 text-sm font-bold text-emerald-300">
-              مرحله ۱ کامل شد
+              مرحله ۲ کامل شد
             </p>
 
             <h2 className="mt-2 text-4xl font-black">
@@ -420,20 +369,20 @@ export default function Level1() {
               همه کلمات اصلی این مرحله را پیدا کردی.
             </p>
 
-            {wordJar.coins > 0 && (
+            {coins > 0 && (
               <div className="mx-auto mt-6 flex w-fit items-center gap-2 rounded-full bg-yellow-400/10 px-5 py-3 text-yellow-300">
                 🪙
                 <span className="font-black">
-                  {wordJar.coins} سکه
+                  {coins} سکه از کلمات جایزه
                 </span>
               </div>
             )}
 
             <button
-              onClick={goToNextLevel}
+              onClick={() => setShowWin(false)}
               className="mt-7 w-full rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 px-6 py-4 font-black shadow-xl transition hover:scale-[1.02] active:scale-95"
             >
-              ادامه به مرحله ۲
+              پایان مرحله
             </button>
 
           </motion.div>
