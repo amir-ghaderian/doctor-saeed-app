@@ -231,7 +231,7 @@ export default function ThinkingPage() {
               },
             }}
             onClick={closeIntro}
-            className="fixed inset-0 z-[100] flex items-center justify-center overflow-hidden bg-slate-950/90 px-4 py-5 backdrop-blur-md"
+            className="fixed inset-0 z-[100] flex items-center justify-center overflow-hidden bg-slate-950/90 px-3 py-3 backdrop-blur-md sm:px-4 sm:py-5"
           >
             {/* =================================================
                 MODAL
@@ -264,7 +264,25 @@ export default function ThinkingPage() {
                       },
                     }
               }
-              className="relative flex h-[min(720px,92vh)] w-full max-w-6xl overflow-hidden rounded-[36px] border border-white/10 bg-slate-950/90 shadow-[0_30px_100px_rgba(0,0,0,0.6)]"
+              onClick={(event) => event.stopPropagation()}
+              className="
+                relative
+                flex
+                h-[min(720px,92vh)]
+                w-full
+                max-w-6xl
+                overflow-hidden
+                rounded-[36px]
+                border
+                border-white/10
+                bg-slate-950/90
+                shadow-[0_30px_100px_rgba(0,0,0,0.6)]
+
+                max-md:h-[calc(100vh-24px)]
+                max-md:max-h-[760px]
+                max-md:min-h-[520px]
+                max-md:rounded-[28px]
+              "
             >
               {/* =================================================
                   MODAL BACKGROUND
@@ -287,16 +305,60 @@ export default function ThinkingPage() {
                   event.stopPropagation();
                   closeIntro();
                 }}
-                className="absolute right-5 top-5 z-50 flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/10 text-2xl leading-none text-white backdrop-blur-md transition-all duration-200 hover:scale-105 hover:bg-white/20 active:scale-95"
+                className="
+                  absolute
+                  right-5
+                  top-5
+                  z-50
+                  flex
+                  h-11
+                  w-11
+                  items-center
+                  justify-center
+                  rounded-full
+                  border
+                  border-white/10
+                  bg-white/10
+                  text-2xl
+                  leading-none
+                  text-white
+                  backdrop-blur-md
+                  transition-all
+                  duration-200
+                  hover:scale-105
+                  hover:bg-white/20
+                  active:scale-95
+
+                  max-md:right-3
+                  max-md:top-3
+                  max-md:h-9
+                  max-md:w-9
+                  max-md:text-xl
+                "
               >
                 ×
               </button>
 
               {/* =================================================
-                  LEFT SIDE — DOCTOR
+                  DOCTOR SIDE
+                  DESKTOP: LEFT 45%
+                  MOBILE: LEFT 40%
               ================================================== */}
 
-              <div className="relative flex w-[45%] items-end justify-center overflow-hidden max-md:absolute max-md:inset-x-0 max-md:bottom-0 max-md:h-[48%] max-md:w-full">
+              <div
+                className="
+                  relative
+                  flex
+                  w-[45%]
+                  items-end
+                  justify-center
+                  overflow-hidden
+
+                  max-md:w-[40%]
+                  max-md:items-end
+                  max-md:justify-center
+                "
+              >
                 {/* DOCTOR GLOW */}
 
                 <motion.div
@@ -312,7 +374,22 @@ export default function ThinkingPage() {
                     duration: 1,
                     delay: 0.2,
                   }}
-                  className="absolute bottom-10 left-1/2 h-80 w-80 -translate-x-1/2 rounded-full bg-indigo-500/20 blur-[100px]"
+                  className="
+                    absolute
+                    bottom-10
+                    left-1/2
+                    h-80
+                    w-80
+                    -translate-x-1/2
+                    rounded-full
+                    bg-indigo-500/20
+                    blur-[100px]
+
+                    max-md:bottom-12
+                    max-md:h-48
+                    max-md:w-48
+                    max-md:blur-[70px]
+                  "
                 />
 
                 {/* DOCTOR IMAGE */}
@@ -339,19 +416,67 @@ export default function ThinkingPage() {
                     duration: 0.95,
                     ease: [0.22, 1, 0.36, 1],
                   }}
-                  className="relative z-10 max-h-[94%] w-auto max-w-[96%] object-contain object-bottom drop-shadow-[0_25px_40px_rgba(0,0,0,0.5)] max-md:max-h-[95%]"
+                  className="
+                    relative
+                    z-10
+                    max-h-[94%]
+                    w-auto
+                    max-w-[96%]
+                    object-contain
+                    object-bottom
+                    drop-shadow-[0_25px_40px_rgba(0,0,0,0.5)]
+
+                    max-md:max-h-[78%]
+                    max-md:max-w-[125%]
+                  "
                 />
 
                 {/* FLOOR LIGHT */}
 
-                <div className="absolute bottom-5 left-1/2 h-3 w-48 -translate-x-1/2 rounded-full bg-white/10 blur-xl" />
+                <div
+                  className="
+                    absolute
+                    bottom-5
+                    left-1/2
+                    h-3
+                    w-48
+                    -translate-x-1/2
+                    rounded-full
+                    bg-white/10
+                    blur-xl
+
+                    max-md:bottom-7
+                    max-md:h-2
+                    max-md:w-28
+                  "
+                />
               </div>
 
               {/* =================================================
-                  RIGHT SIDE — CONVERSATION
+                  CONVERSATION SIDE
+                  DESKTOP: RIGHT 55%
+                  MOBILE: RIGHT 60%
               ================================================== */}
 
-              <div className="relative z-20 flex w-[55%] flex-col justify-center px-12 py-12 max-md:w-full max-md:justify-start max-md:px-6 max-md:pt-9">
+              <div
+                className="
+                  relative
+                  z-20
+                  flex
+                  w-[55%]
+                  flex-col
+                  justify-center
+                  px-12
+                  py-12
+
+                  max-md:w-[60%]
+                  max-md:justify-center
+                  max-md:px-3
+                  max-md:py-10
+                  max-md:pl-3
+                  max-md:pr-2
+                "
+              >
                 {/* HEADER */}
 
                 <motion.div
@@ -368,25 +493,70 @@ export default function ThinkingPage() {
                     delay: 0.35,
                     ease: [0.22, 1, 0.36, 1],
                   }}
-                  className="mb-8"
+                  className="
+                    mb-8
+
+                    max-md:mb-4
+                  "
                 >
-                  <div className="mb-4 flex items-center gap-3">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-indigo-500/15 text-xl shadow-lg">
+                  <div
+                    className="
+                      mb-4
+                      flex
+                      items-center
+                      gap-3
+
+                      max-md:mb-3
+                      max-md:gap-2
+                    "
+                  >
+                    <div
+                      className="
+                        flex
+                        h-11
+                        w-11
+                        shrink-0
+                        items-center
+                        justify-center
+                        rounded-xl
+                        border
+                        border-white/10
+                        bg-indigo-500/15
+                        text-xl
+                        shadow-lg
+
+                        max-md:h-8
+                        max-md:w-8
+                        max-md:rounded-lg
+                        max-md:text-base
+                      "
+                    >
                       🧠
                     </div>
 
                     <div>
-                      <p className="text-xs font-medium text-indigo-300">
+                      <p className="text-xs font-medium text-indigo-300 max-md:text-[10px]">
                         دکتر سعید
                       </p>
 
-                      <p className="mt-0.5 text-sm font-bold text-white">
+                      <p className="mt-0.5 text-sm font-bold text-white max-md:text-xs">
                         بازی‌های فکری
                       </p>
                     </div>
                   </div>
 
-                  <h2 className="text-3xl font-black leading-tight text-white md:text-4xl">
+                  <h2
+                    className="
+                      text-3xl
+                      font-black
+                      leading-tight
+                      text-white
+                      md:text-4xl
+
+                      max-md:text-[19px]
+                      max-md:leading-7
+                    "
+                  >
                     اهمیت بازی‌های فکری
                     <br />
                     برای ذهن
@@ -397,7 +567,15 @@ export default function ThinkingPage() {
                     CHAT BUBBLES
                 ================================================== */}
 
-                <div className="flex flex-col gap-4">
+                <div
+                  className="
+                    flex
+                    flex-col
+                    gap-4
+
+                    max-md:gap-2
+                  "
+                >
                   <AnimatePresence initial={false}>
                     {conversations.map((message, index) => {
                       if (index >= visibleBubbles) {
@@ -429,20 +607,55 @@ export default function ThinkingPage() {
                           className="flex justify-start"
                         >
                           <div
-                            className={`relative max-w-[92%] rounded-2xl px-5 py-3.5 text-sm leading-7 shadow-xl backdrop-blur-xl ${
-                              isLast
-                                ? "border border-indigo-400/25 bg-indigo-500/20 text-white"
-                                : "border border-white/10 bg-white/[0.07] text-slate-200"
-                            }`}
+                            className={`
+                              relative
+                              max-w-[92%]
+                              rounded-2xl
+                              px-5
+                              py-3.5
+                              text-sm
+                              leading-7
+                              shadow-xl
+                              backdrop-blur-xl
+
+                              max-md:max-w-[98%]
+                              max-md:rounded-xl
+                              max-md:px-2.5
+                              max-md:py-2
+                              max-md:text-[11px]
+                              max-md:leading-[1.65rem]
+
+                              ${
+                                isLast
+                                  ? "border border-indigo-400/25 bg-indigo-500/20 text-white"
+                                  : "border border-white/10 bg-white/[0.07] text-slate-200"
+                              }
+                            `}
                           >
                             {/* BUBBLE TAIL */}
 
                             <div
-                              className={`absolute -right-1.5 top-5 h-3 w-3 rotate-45 border-r border-t ${
-                                isLast
-                                  ? "border-indigo-400/25 bg-indigo-500/20"
-                                  : "border-white/10 bg-white/[0.07]"
-                              }`}
+                              className={`
+                                absolute
+                                -right-1.5
+                                top-5
+                                h-3
+                                w-3
+                                rotate-45
+                                border-r
+                                border-t
+
+                                max-md:-right-1
+                                max-md:top-4
+                                max-md:h-2
+                                max-md:w-2
+
+                                ${
+                                  isLast
+                                    ? "border-indigo-400/25 bg-indigo-500/20"
+                                    : "border-white/10 bg-white/[0.07]"
+                                }
+                              `}
                             />
 
                             {message}
@@ -475,7 +688,18 @@ export default function ThinkingPage() {
                   transition={{
                     duration: 0.5,
                   }}
-                  className="mt-8 flex items-center gap-2 text-xs text-slate-400"
+                  className="
+                    mt-8
+                    flex
+                    items-center
+                    gap-2
+                    text-xs
+                    text-slate-400
+
+                    max-md:mt-3
+                    max-md:gap-1.5
+                    max-md:text-[9px]
+                  "
                 >
                   <motion.span
                     animate={{
@@ -486,7 +710,20 @@ export default function ThinkingPage() {
                       repeat: Infinity,
                       ease: "easeInOut",
                     }}
-                    className="flex h-8 w-8 items-center justify-center rounded-full bg-white/10"
+                    className="
+                      flex
+                      h-8
+                      w-8
+                      shrink-0
+                      items-center
+                      justify-center
+                      rounded-full
+                      bg-white/10
+
+                      max-md:h-6
+                      max-md:w-6
+                      max-md:text-xs
+                    "
                   >
                     👆
                   </motion.span>
@@ -499,7 +736,7 @@ export default function ThinkingPage() {
                   BOTTOM HINT
               ================================================== */}
 
-              <div className="pointer-events-none absolute bottom-4 left-1/2 z-40 -translate-x-1/2">
+              <div className="pointer-events-none absolute bottom-4 left-1/2 z-40 -translate-x-1/2 max-md:bottom-2">
                 <motion.div
                   animate={{
                     opacity: [0.35, 0.8, 0.35],
@@ -509,7 +746,21 @@ export default function ThinkingPage() {
                     repeat: Infinity,
                     ease: "easeInOut",
                   }}
-                  className="rounded-full border border-white/10 bg-white/5 px-5 py-2 text-[10px] text-white/50 backdrop-blur-md"
+                  className="
+                    rounded-full
+                    border
+                    border-white/10
+                    bg-white/5
+                    px-5
+                    py-2
+                    text-[10px]
+                    text-white/50
+                    backdrop-blur-md
+
+                    max-md:px-3
+                    max-md:py-1
+                    max-md:text-[8px]
+                  "
                 >
                   برای ورود لمس کنید
                 </motion.div>
