@@ -161,7 +161,6 @@ export const tableLevels: TableLevel[] = [
       "نیا",
       "پین",
       "ما",
-      "ایمن",
       "نام",
       "ایمن",
       "پام",
@@ -186,7 +185,7 @@ export const tableLevels: TableLevel[] = [
 
       "منها",
 
-      "گام",
+     
       "هان",
 
 
@@ -242,7 +241,7 @@ export const tableLevels: TableLevel[] = [
       "رام",
       "کام",
       "کرم",
-      "مکار",
+    
       "ارم",
       "یار",
       "رای",
@@ -250,7 +249,7 @@ export const tableLevels: TableLevel[] = [
       "اکرم",
       "امیر",
       "امر",
-      "کاری",
+     
 
     ],
   },
@@ -258,7 +257,7 @@ export const tableLevels: TableLevel[] = [
   {
     id: 14,
     letters: ["س", "ا", "ل", "م", "ی"],
-    words: ["سال", "مال", "سالم", "سلام"],
+    words: ["سال", "سیما", "سالم", "سلام"],
     bonusWords: [
 
       "ملس",
@@ -274,7 +273,7 @@ export const tableLevels: TableLevel[] = [
       "مال",
       "مالی",
       "سیم",
-      "سیما",
+    
       "سام",
       "سیل",
 
@@ -315,7 +314,7 @@ export const tableLevels: TableLevel[] = [
       "داری",
       "دایر",
       "دارا",
-      "ایراد",
+      
       "ردا",
     ],
   },
@@ -354,7 +353,7 @@ export const tableLevels: TableLevel[] = [
       "مکار",
       "کارد",
       "رمان",
-      "مادر",
+    
       "کنار",
       "اکرم",
       "کندر",
@@ -523,15 +522,15 @@ export const tableLevels: TableLevel[] = [
       "لام",
       "علا",
       "عمل",
-      "عامل",
+    
       "عالم",
       "جمال",
-      "مجال",
+     
       "علام",
-      "اعلام",
+    
       "عجله",
       "مجله",
-      "معالج",
+     
       "اجمال",
     ],
   },
@@ -544,7 +543,7 @@ export const tableLevels: TableLevel[] = [
       "برق",
       "عبرت",
       "عابر",
-      "ربع",
+      "براق",
       "عبارت",
     ],
 
@@ -563,7 +562,7 @@ export const tableLevels: TableLevel[] = [
       "برات",
       "عبا",
       "قاب",
-      "براق",
+     
     ],
   },
 
@@ -590,8 +589,8 @@ export const tableLevels: TableLevel[] = [
       "ساری",
       "سایر",
       "گیس",
-      "گیسو",
-      "یوگا",
+   
+     
       "رسا",
       "سیار",
       "وارسی",
@@ -601,7 +600,7 @@ export const tableLevels: TableLevel[] = [
       "گاری",
       "رسوا",
       "گرا",
-      "گیرا",
+      
       "یوگا",
 
     ],
@@ -710,7 +709,7 @@ export const tableLevels: TableLevel[] = [
       "هوا",
       "کناره",
       "کاهن",
-      "کوهان",
+     
     ],
   },
   {
@@ -741,6 +740,7 @@ export const tableLevels: TableLevel[] = [
     
   ],
 },
+
 
 ];
 
@@ -793,24 +793,19 @@ export function isBonusWord(
 
   const normalizedWord = normalizeWord(word);
 
-  // کلمه‌ای که در هر مرحله‌ای کلمه اصلی است،
-  // هیچ‌وقت نباید به عنوان کلمه جایزه ثبت شود.
-  const isMainWord = tableLevels.some(
-    (item) =>
-      item.words.some(
-        (mainWord) =>
-          normalizeWord(mainWord) ===
-          normalizedWord
-      )
+  // فقط کلمات اصلی همین مرحله را بررسی می‌کنیم
+  const isMainWord = level.words.some(
+    (mainWord) =>
+      normalizeWord(mainWord) === normalizedWord
   );
 
   if (isMainWord) {
     return false;
   }
 
+  // فقط بونوس‌های همین مرحله
   return level.bonusWords.some(
     (bonusWord) =>
-      normalizeWord(bonusWord) ===
-      normalizedWord
+      normalizeWord(bonusWord) === normalizedWord
   );
 }
