@@ -742,15 +742,6 @@ export const tableLevels: TableLevel[] = [
   ],
 },
 
-
-
-
-
-
-
-
-
-
 ];
 
 export function getTableLevel(

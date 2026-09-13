@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useRef, useState } from "react";
@@ -80,8 +81,6 @@ export default function TablePage() {
   ========================================================= */
 
   useEffect(() => {
-    // یک‌بار اطلاعات پیشرفت قدیمی را پاک می‌کنیم تا منطق جدید نقشه مراحل
-    // و محاسبه ستاره‌ها از صفر شروع شود. موجودی سکه حفظ می‌شود.
     const migrationDone = localStorage.getItem(GAME_MIGRATION_KEY);
 
     if (!migrationDone) {
@@ -114,7 +113,7 @@ export default function TablePage() {
 
     const savedProgressLevel = Number(savedLevel);
     const savedMaxProgress = Number(savedMaxLevel);
-    
+
     const restoredMaxLevel =
       Number.isInteger(savedMaxProgress) &&
       savedMaxProgress >= 1 &&
@@ -125,7 +124,7 @@ export default function TablePage() {
             savedProgressLevel <= TOTAL_LEVELS
           ? savedProgressLevel
           : 1;
-    
+
     setMaxUnlockedLevel(restoredMaxLevel);
 
     if (savedStars) {
@@ -414,12 +413,24 @@ export default function TablePage() {
     setSelectedLetters([]);
     setSelectedLetterIndexes([]);
     setMessage("");
+
+    helpProgressRef.current = {
+      level: currentLevel,
+      word: "",
+      count: 0,
+    };
   };
 
   const removeLastLetter = () => {
     setSelectedLetters((current) => current.slice(0, -1));
     setSelectedLetterIndexes((current) => current.slice(0, -1));
     setMessage("");
+
+    helpProgressRef.current = {
+      level: currentLevel,
+      word: "",
+      count: 0,
+    };
   };
 
   const shuffleLetters = () => {
@@ -478,48 +489,58 @@ export default function TablePage() {
     }
 
     const targetWord = normalizeWord(remainingWords[0]);
+    const currentSelection = normalizeWord(selectedLetters.join(""));
 
+    /*
+     * اگر کلمه‌ای در حال ساخته شدن است، باید حتماً
+     * ابتدای یکی از کلمات هدف باشد.
+     *
+     * در غیر این صورت کمک نباید از جای دیگری از کلمه
+     * یک حرف به کاربر بدهد.
+     */
     if (
-      helpProgressRef.current.level !== currentLevel ||
-      helpProgressRef.current.word !== targetWord
+      currentSelection &&
+      !targetWord.startsWith(currentSelection)
     ) {
-      helpProgressRef.current = {
-        level: currentLevel,
-        word: targetWord,
-        count: 0,
-      };
-    }
-
-    let nextPosition = helpProgressRef.current.count;
-    let helpIndex = -1;
-    let helpLetter = "";
-
-    const usedIndexes = new Set(selectedLetterIndexes);
-
-    while (nextPosition < targetWord.length) {
-      const targetLetter = targetWord[nextPosition];
-
-      const availableIndex = level.letters.findIndex(
-        (letter, index) =>
-          normalizeWord(letter) === normalizeWord(targetLetter) &&
-          !usedIndexes.has(index)
-      );
-
-      if (availableIndex !== -1) {
-        helpIndex = availableIndex;
-        helpLetter = level.letters[availableIndex];
-        break;
-      }
-
-      nextPosition += 1;
-    }
-
-    if (helpIndex === -1) {
       setMessage(
         "اول کلمه فعلی را کامل یا پاک کن، سپس از کمک استفاده کن."
       );
       return;
     }
+
+    /*
+     * تعداد حروف فعلی مشخص می‌کند کمک بعدی باید
+     * کدام حرف کلمه هدف را نشان دهد.
+     *
+     * این روش دیگر به شمارنده قدیمی وابسته نیست و
+     * بعد از پاک کردن کلمه هم از ابتدا شروع می‌شود.
+     */
+    const nextPosition = currentSelection.length;
+
+    if (nextPosition >= targetWord.length) {
+      setMessage(
+        "کلمه فعلی کامل است؛ آن را پیدا کن یا پاک کن."
+      );
+      return;
+    }
+
+    const targetLetter = targetWord[nextPosition];
+    const usedIndexes = new Set(selectedLetterIndexes);
+
+    const helpIndex = level.letters.findIndex(
+      (letter, index) =>
+        normalizeWord(letter) === normalizeWord(targetLetter) &&
+        !usedIndexes.has(index)
+    );
+
+    if (helpIndex === -1) {
+      setMessage(
+        "حرف لازم برای این کمک در حروف باقی‌مانده نیست؛ کلمه فعلی را پاک کن."
+      );
+      return;
+    }
+
+    const helpLetter = level.letters[helpIndex];
 
     helpProgressRef.current = {
       level: currentLevel,
@@ -567,6 +588,13 @@ export default function TablePage() {
         setMessage("این کلمه را قبلاً پیدا کردی.");
         setSelectedLetters([]);
         setSelectedLetterIndexes([]);
+
+        helpProgressRef.current = {
+          level: currentLevel,
+          word: "",
+          count: 0,
+        };
+
         return;
       }
 
@@ -639,6 +667,12 @@ export default function TablePage() {
         setSelectedLetters([]);
         setSelectedLetterIndexes([]);
 
+        helpProgressRef.current = {
+          level: currentLevel,
+          word: "",
+          count: 0,
+        };
+
         setMessage(
           "این کلمه جایزه را قبلاً پیدا کردی."
         );
@@ -664,6 +698,12 @@ export default function TablePage() {
       setSelectedLetters([]);
       setSelectedLetterIndexes([]);
 
+      helpProgressRef.current = {
+        level: currentLevel,
+        word: "",
+        count: 0,
+      };
+
       setMessage(
         "کلمه جایزه پیدا کردی! 🪙 +۱ سکه"
       );
@@ -673,6 +713,12 @@ export default function TablePage() {
 
     setSelectedLetters([]);
     setSelectedLetterIndexes([]);
+
+    helpProgressRef.current = {
+      level: currentLevel,
+      word: "",
+      count: 0,
+    };
   };
 
   /* =========================================================
@@ -1088,498 +1134,495 @@ export default function TablePage() {
         </div>
       </div>
 
- 
+      {/* =====================================================
+          LEVEL MAP MODAL
+      ===================================================== */}
 
-    {/* =====================================================
-    LEVEL MAP MODAL
-===================================================== */}
-
-{showLevelMap && (
-  <div
-    dir="rtl"
-    className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/45 px-3 py-4 backdrop-blur-[4px]"
-  >
-    <motion.div
-      initial={{ opacity: 0, scale: 0.95, y: 18 }}
-      animate={{ opacity: 1, scale: 1, y: 0 }}
-      transition={{
-        duration: 0.35,
-        ease: [0.22, 1, 0.36, 1],
-      }}
-      className="
-        relative
-        flex
-        max-h-[88vh]
-        w-full
-        max-w-2xl
-        flex-col
-        overflow-hidden
-        rounded-[32px]
-        border
-        border-white/70
-        bg-[#f7faf6]
-        shadow-[0_30px_90px_rgba(15,23,42,0.30)]
-      "
-    >
-      {/* =================================================
-          HEADER
-      ================================================== */}
-
-      <div className="relative z-20 border-b border-slate-200/70 bg-white/95 px-5 py-4 sm:px-7">
-        <button
-          type="button"
-          onClick={() => setShowLevelMap(false)}
-          className="
-            absolute
-            left-4
-            top-4
-            flex
-            h-9
-            w-9
-            items-center
-            justify-center
-            rounded-full
-            border
-            border-slate-200
-            bg-slate-50
-            text-lg
-            font-black
-            text-slate-500
-            transition-all
-            hover:scale-105
-            hover:bg-slate-100
-          "
-          aria-label="بستن"
+      {showLevelMap && (
+        <div
+          dir="rtl"
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/45 px-3 py-4 backdrop-blur-[4px]"
         >
-          ×
-        </button>
-
-        <div className="text-center">
-          <div
-            className="
-              mx-auto
-              mb-2.5
-              flex
-              h-11
-              w-11
-              items-center
-              justify-center
-              rounded-[16px]
-              bg-gradient-to-br
-              from-indigo-500
-              via-violet-500
-              to-purple-600
-              text-xl
-              shadow-lg
-              shadow-indigo-100
-            "
-          >
-            🗺️
-          </div>
-
-          <p className="text-[10px] font-black tracking-wide text-indigo-500">
-            مسیر پیشرفت
-          </p>
-
-          <h2 className="mt-0.5 text-xl font-black text-slate-800 sm:text-2xl">
-            سفر کَلَمَک
-          </h2>
-
-          <div className="mt-2.5 flex items-center justify-center gap-2">
-            <div className="rounded-full bg-indigo-50 px-3 py-1 text-[10px] font-black text-indigo-600 sm:text-xs">
-              مرحله {maxUnlockedLevel} از {TOTAL_LEVELS}
-            </div>
-
-            <div className="rounded-full bg-amber-50 px-3 py-1 text-[10px] font-black text-amber-500 sm:text-xs">
-              ⭐{" "}
-              {Object.values(levelStars).reduce(
-                (sum, value) => sum + value,
-                0
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* =================================================
-          MAP AREA
-      ================================================== */}
-
-      <div className="relative flex-1 overflow-y-auto px-3 py-5 sm:px-5 sm:py-6">
-        {/* BACKGROUND DECOR */}
-        <div className="pointer-events-none absolute inset-0 overflow-hidden">
-          <div className="absolute -right-20 top-10 h-36 w-36 rounded-full bg-emerald-100/60 blur-3xl" />
-          <div className="absolute -left-20 bottom-10 h-40 w-40 rounded-full bg-indigo-100/60 blur-3xl" />
-          <div className="absolute right-[18%] top-[25%] h-16 w-16 rounded-full bg-amber-100/40 blur-2xl" />
-          <div className="absolute left-[20%] top-[60%] h-20 w-20 rounded-full bg-purple-100/30 blur-2xl" />
-
-          <div className="absolute right-3 top-3 text-xl opacity-35">
-            🌿
-          </div>
-
-          <div className="absolute left-4 top-[28%] text-xl opacity-30">
-            🍃
-          </div>
-
-          <div className="absolute right-6 bottom-[18%] text-xl opacity-30">
-            🌱
-          </div>
-
-          <div className="absolute left-7 bottom-5 text-xl opacity-25">
-            🍀
-          </div>
-        </div>
-
-        {/*
-          6 ستون:
-          هر ردیف جهتش عوض می‌شود و مسیر حالت مارپیچی پیدا می‌کند.
-        */}
-        {(() => {
-          const columns = 6;
-          const rows = Math.ceil(mapLevels.length / columns);
-
-          const points = mapLevels.map((_, index) => {
-            const row = Math.floor(index / columns);
-            const position = index % columns;
-
-            const column =
-              row % 2 === 0
-                ? position
-                : columns - 1 - position;
-
-            const x = ((column + 0.5) / columns) * 100;
-            const y = ((row + 0.5) / rows) * 100;
-
-            return { x, y };
-          });
-
-          const pathData = points
-            .map((point, index) => {
-              if (index === 0) {
-                return `M ${point.x} ${point.y}`;
-              }
-
-              const previous = points[index - 1];
-
-              const controlX = (previous.x + point.x) / 2;
-              const controlY = (previous.y + point.y) / 2;
-
-              return `Q ${controlX} ${previous.y}, ${point.x} ${point.y}`;
-            })
-            .join(" ");
-
-          return (
-            <div className="relative mx-auto w-full max-w-[610px]">
-              {/* PATH */}
-              <svg
-                viewBox="0 0 100 100"
-                preserveAspectRatio="none"
-                className="pointer-events-none absolute inset-0 z-0 h-full w-full"
-              >
-                <defs>
-                  <linearGradient
-                    id="levelPathGradient"
-                    x1="0%"
-                    y1="0%"
-                    x2="100%"
-                    y2="100%"
-                  >
-                    <stop offset="0%" stopColor="#818cf8" />
-                    <stop offset="45%" stopColor="#a78bfa" />
-                    <stop offset="100%" stopColor="#34d399" />
-                  </linearGradient>
-                </defs>
-
-                <path
-                  d={pathData}
-                  fill="none"
-                  stroke="rgba(255,255,255,0.95)"
-                  strokeWidth="7"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-
-                <path
-                  d={pathData}
-                  fill="none"
-                  stroke="url(#levelPathGradient)"
-                  strokeWidth="2.2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeDasharray="1.5 1"
-                />
-              </svg>
-
-              {/* LEVEL GRID */}
-              <div
-                className="relative z-10 grid"
-                style={{
-                  gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
-                  gridAutoRows: "76px",
-                }}
-              >
-                {mapLevels.map((levelNumber, index) => {
-                  const unlocked = levelNumber <= maxUnlockedLevel;
-                  const completed = Boolean(levelStars[levelNumber]);
-                  const stars = levelStars[levelNumber] ?? 0;
-                  const active = levelNumber === currentLevel;
-
-                  return (
-                    <motion.div
-                      key={levelNumber}
-                      initial={{
-                        opacity: 0,
-                        scale: 0.8,
-                        y: 10,
-                      }}
-                      animate={{
-                        opacity: 1,
-                        scale: 1,
-                        y: 0,
-                      }}
-                      transition={{
-                        delay: Math.min(index * 0.025, 0.4),
-                        duration: 0.35,
-                        ease: [0.22, 1, 0.36, 1],
-                      }}
-                      className="relative flex items-center justify-center"
-                    >
-                      {/* LEVEL NODE */}
-                      <button
-                        type="button"
-                        disabled={!unlocked}
-                        onClick={() => selectLevel(levelNumber)}
-                        className={`
-                          group
-                          relative
-                          flex
-                          h-[54px]
-                          w-[54px]
-                          items-center
-                          justify-center
-                          rounded-full
-                          border-[4px]
-                          font-black
-                          shadow-lg
-                          transition-all
-                          duration-200
-                          sm:h-[60px]
-                          sm:w-[60px]
-
-                          ${
-                            active
-                              ? `
-                                border-indigo-200
-                                bg-gradient-to-br
-                                from-indigo-500
-                                via-violet-500
-                                to-purple-600
-                                text-white
-                                shadow-indigo-200
-                                ring-4
-                                ring-indigo-100/70
-                              `
-                              : completed
-                                ? `
-                                  border-emerald-100
-                                  bg-gradient-to-br
-                                  from-emerald-400
-                                  to-teal-500
-                                  text-white
-                                  shadow-emerald-100
-                                `
-                                : unlocked
-                                  ? `
-                                    border-white
-                                    bg-white
-                                    text-slate-700
-                                    shadow-slate-200
-                                    hover:-translate-y-1
-                                    hover:scale-105
-                                  `
-                                  : `
-                                    border-slate-200
-                                    bg-slate-100
-                                    text-slate-300
-                                  `
-                          }
-                        `}
-                      >
-                        {/* TOP MINI BADGE */}
-                        {completed && (
-                          <span
-                            className="
-                              absolute
-                              -top-2
-                              left-1/2
-                              -translate-x-1/2
-                              rounded-full
-                              border
-                              border-white
-                              bg-white
-                              px-1.5
-                              py-0.5
-                              text-[8px]
-                              leading-none
-                              shadow-sm
-                            "
-                          >
-                            {"⭐".repeat(stars)}
-                          </span>
-                        )}
-
-                        {/* MAIN CONTENT */}
-                        {unlocked ? (
-                          <span className="text-lg sm:text-xl">
-                            {levelNumber}
-                          </span>
-                        ) : (
-                          <span className="text-lg opacity-80">
-                            🔒
-                          </span>
-                        )}
-
-                        {/* ACTIVE GLOW */}
-                        {active && (
-                          <motion.span
-                            animate={{
-                              scale: [1, 1.15, 1],
-                              opacity: [0.35, 0.1, 0.35],
-                            }}
-                            transition={{
-                              duration: 1.8,
-                              repeat: Infinity,
-                              ease: "easeInOut",
-                            }}
-                            className="
-                              absolute
-                              -inset-2
-                              -z-10
-                              rounded-full
-                              bg-indigo-400
-                            "
-                          />
-                        )}
-
-                        {/* COMPLETED DOT */}
-                        {completed && !active && (
-                          <span
-                            className="
-                              absolute
-                              -bottom-1
-                              -right-1
-                              flex
-                              h-4
-                              w-4
-                              items-center
-                              justify-center
-                              rounded-full
-                              bg-white
-                              text-[8px]
-                              shadow-sm
-                              ring-1
-                              ring-emerald-100
-                            "
-                          >
-                            ✓
-                          </span>
-                        )}
-                      </button>
-
-                      {/* ACTIVE LABEL */}
-                      {active && (
-                        <motion.div
-                          initial={{
-                            opacity: 0,
-                            y: 4,
-                          }}
-                          animate={{
-                            opacity: 1,
-                            y: 0,
-                          }}
-                          transition={{
-                            duration: 0.25,
-                          }}
-                          className="
-                            absolute
-                            -bottom-1
-                            left-1/2
-                            -translate-x-1/2
-                            translate-y-full
-                            whitespace-nowrap
-                            rounded-full
-                            bg-indigo-600
-                            px-2
-                            py-1
-                            text-[8px]
-                            font-black
-                            text-white
-                            shadow-md
-                            sm:text-[9px]
-                          "
-                        >
-                          اینجایی
-                        </motion.div>
-                      )}
-                    </motion.div>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })()}
-      </div>
-
-      {/* =================================================
-          FOOTER
-      ================================================== */}
-
-      <div className="relative z-20 border-t border-slate-200/70 bg-white/95 px-4 py-3.5 sm:px-5">
-        <div className="flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-[10px] font-black text-slate-700 sm:text-xs">
-              هر مرحله، یک قدم جلوتر
-            </p>
-
-            <p className="mt-0.5 text-[9px] font-medium text-slate-400 sm:text-[10px]">
-              ⭐⭐⭐ با پیدا کردن ۵ کلمه جایزه یا بیشتر
-            </p>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => {
-              setShowLevelMap(false);
-              setCurrentLevel(maxUnlockedLevel);
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 18 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{
+              duration: 0.35,
+              ease: [0.22, 1, 0.36, 1],
             }}
             className="
-              shrink-0
-              rounded-2xl
-              bg-gradient-to-r
-              from-indigo-500
-              via-violet-500
-              to-purple-600
-              px-4
-              py-2.5
-              text-[10px]
-              font-black
-              text-white
-              shadow-lg
-              shadow-indigo-100
-              transition-all
-              hover:-translate-y-0.5
-              hover:shadow-xl
-              sm:px-5
-              sm:text-xs
+              relative
+              flex
+              max-h-[88vh]
+              w-full
+              max-w-2xl
+              flex-col
+              overflow-hidden
+              rounded-[32px]
+              border
+              border-white/70
+              bg-[#f7faf6]
+              shadow-[0_30px_90px_rgba(15,23,42,0.30)]
             "
           >
-            ادامه بازی →
-          </button>
+            <div className="relative z-20 border-b border-slate-200/70 bg-white/95 px-5 py-4 sm:px-7">
+              <button
+                type="button"
+                onClick={() => setShowLevelMap(false)}
+                className="
+                  absolute
+                  left-4
+                  top-4
+                  flex
+                  h-9
+                  w-9
+                  items-center
+                  justify-center
+                  rounded-full
+                  border
+                  border-slate-200
+                  bg-slate-50
+                  text-lg
+                  font-black
+                  text-slate-500
+                  transition-all
+                  hover:scale-105
+                  hover:bg-slate-100
+                "
+                aria-label="بستن"
+              >
+                ×
+              </button>
+
+              <div className="text-center">
+                <div
+                  className="
+                    mx-auto
+                    mb-2.5
+                    flex
+                    h-11
+                    w-11
+                    items-center
+                    justify-center
+                    rounded-[16px]
+                    bg-gradient-to-br
+                    from-indigo-500
+                    via-violet-500
+                    to-purple-600
+                    text-xl
+                    shadow-lg
+                    shadow-indigo-100
+                  "
+                >
+                  🗺️
+                </div>
+
+                <p className="text-[10px] font-black tracking-wide text-indigo-500">
+                  مسیر پیشرفت
+                </p>
+
+                <h2 className="mt-0.5 text-xl font-black text-slate-800 sm:text-2xl">
+                  سفر کَلَمَک
+                </h2>
+
+                <div className="mt-2.5 flex items-center justify-center gap-2">
+                  <div className="rounded-full bg-indigo-50 px-3 py-1 text-[10px] font-black text-indigo-600 sm:text-xs">
+                    مرحله {maxUnlockedLevel} از {TOTAL_LEVELS}
+                  </div>
+
+                  <div className="rounded-full bg-amber-50 px-3 py-1 text-[10px] font-black text-amber-500 sm:text-xs">
+                    ⭐{" "}
+                    {Object.values(levelStars).reduce(
+                      (sum, value) => sum + value,
+                      0
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="relative flex-1 overflow-y-auto px-3 py-5 sm:px-5 sm:py-6">
+              <div className="pointer-events-none absolute inset-0 overflow-hidden">
+                <div className="absolute -right-20 top-10 h-36 w-36 rounded-full bg-emerald-100/60 blur-3xl" />
+                <div className="absolute -left-20 bottom-10 h-40 w-40 rounded-full bg-indigo-100/60 blur-3xl" />
+                <div className="absolute right-[18%] top-[25%] h-16 w-16 rounded-full bg-amber-100/40 blur-2xl" />
+                <div className="absolute left-[20%] top-[60%] h-20 w-20 rounded-full bg-purple-100/30 blur-2xl" />
+
+                <div className="absolute right-3 top-3 text-xl opacity-35">
+                  🌿
+                </div>
+
+                <div className="absolute left-4 top-[28%] text-xl opacity-30">
+                  🍃
+                </div>
+
+                <div className="absolute right-6 bottom-[18%] text-xl opacity-30">
+                  🌱
+                </div>
+
+                <div className="absolute left-7 bottom-5 text-xl opacity-25">
+                  🍀
+                </div>
+              </div>
+
+              {(() => {
+                const columns = 6;
+                const rows = Math.ceil(mapLevels.length / columns);
+
+                const points = mapLevels.map((_, index) => {
+                  const row = Math.floor(index / columns);
+                  const position = index % columns;
+
+                  const column =
+                    row % 2 === 0
+                      ? position
+                      : columns - 1 - position;
+
+                  const x = ((column + 0.5) / columns) * 100;
+                  const y = ((row + 0.5) / rows) * 100;
+
+                  return { x, y };
+                });
+
+                const pathData = points
+                  .map((point, index) => {
+                    if (index === 0) {
+                      return `M ${point.x} ${point.y}`;
+                    }
+
+                    const previous = points[index - 1];
+
+                    const controlX =
+                      (previous.x + point.x) / 2;
+                    const controlY =
+                      (previous.y + point.y) / 2;
+
+                    return `Q ${controlX} ${previous.y}, ${point.x} ${point.y}`;
+                  })
+                  .join(" ");
+
+                return (
+                  <div className="relative mx-auto w-full max-w-[610px]">
+                    <svg
+                      viewBox="0 0 100 100"
+                      preserveAspectRatio="none"
+                      className="pointer-events-none absolute inset-0 z-0 h-full w-full"
+                    >
+                      <defs>
+                        <linearGradient
+                          id="levelPathGradient"
+                          x1="0%"
+                          y1="0%"
+                          x2="100%"
+                          y2="100%"
+                        >
+                          <stop
+                            offset="0%"
+                            stopColor="#818cf8"
+                          />
+                          <stop
+                            offset="45%"
+                            stopColor="#a78bfa"
+                          />
+                          <stop
+                            offset="100%"
+                            stopColor="#34d399"
+                          />
+                        </linearGradient>
+                      </defs>
+
+                      <path
+                        d={pathData}
+                        fill="none"
+                        stroke="rgba(255,255,255,0.95)"
+                        strokeWidth="7"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+
+                      <path
+                        d={pathData}
+                        fill="none"
+                        stroke="url(#levelPathGradient)"
+                        strokeWidth="2.2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeDasharray="1.5 1"
+                      />
+                    </svg>
+
+                    <div
+                      className="relative z-10 grid"
+                      style={{
+                        gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
+                        gridAutoRows: "76px",
+                      }}
+                    >
+                      {mapLevels.map((levelNumber, index) => {
+                        const unlocked =
+                          levelNumber <= maxUnlockedLevel;
+                        const completed =
+                          Boolean(levelStars[levelNumber]);
+                        const stars =
+                          levelStars[levelNumber] ?? 0;
+                        const active =
+                          levelNumber === currentLevel;
+
+                        return (
+                          <motion.div
+                            key={levelNumber}
+                            initial={{
+                              opacity: 0,
+                              scale: 0.8,
+                              y: 10,
+                            }}
+                            animate={{
+                              opacity: 1,
+                              scale: 1,
+                              y: 0,
+                            }}
+                            transition={{
+                              delay: Math.min(
+                                index * 0.025,
+                                0.4
+                              ),
+                              duration: 0.35,
+                              ease: [0.22, 1, 0.36, 1],
+                            }}
+                            className="relative flex items-center justify-center"
+                          >
+                            <button
+                              type="button"
+                              disabled={!unlocked}
+                              onClick={() =>
+                                selectLevel(levelNumber)
+                              }
+                              className={`
+                                group
+                                relative
+                                flex
+                                h-[54px]
+                                w-[54px]
+                                items-center
+                                justify-center
+                                rounded-full
+                                border-[4px]
+                                font-black
+                                shadow-lg
+                                transition-all
+                                duration-200
+                                sm:h-[60px]
+                                sm:w-[60px]
+
+                                ${
+                                  active
+                                    ? `
+                                      border-indigo-200
+                                      bg-gradient-to-br
+                                      from-indigo-500
+                                      via-violet-500
+                                      to-purple-600
+                                      text-white
+                                      shadow-indigo-200
+                                      ring-4
+                                      ring-indigo-100/70
+                                    `
+                                    : completed
+                                      ? `
+                                        border-emerald-100
+                                        bg-gradient-to-br
+                                        from-emerald-400
+                                        to-teal-500
+                                        text-white
+                                        shadow-emerald-100
+                                      `
+                                      : unlocked
+                                        ? `
+                                          border-white
+                                          bg-white
+                                          text-slate-700
+                                          shadow-slate-200
+                                          hover:-translate-y-1
+                                          hover:scale-105
+                                        `
+                                        : `
+                                          border-slate-200
+                                          bg-slate-100
+                                          text-slate-300
+                                        `
+                                }
+                              `}
+                            >
+                              {completed && (
+                                <span
+                                  className="
+                                    absolute
+                                    -top-2
+                                    left-1/2
+                                    -translate-x-1/2
+                                    rounded-full
+                                    border
+                                    border-white
+                                    bg-white
+                                    px-1.5
+                                    py-0.5
+                                    text-[8px]
+                                    leading-none
+                                    shadow-sm
+                                  "
+                                >
+                                  {"⭐".repeat(stars)}
+                                </span>
+                              )}
+
+                              {unlocked ? (
+                                <span className="text-lg sm:text-xl">
+                                  {levelNumber}
+                                </span>
+                              ) : (
+                                <span className="text-lg opacity-80">
+                                  🔒
+                                </span>
+                              )}
+
+                              {active && (
+                                <motion.span
+                                  animate={{
+                                    scale: [1, 1.15, 1],
+                                    opacity: [
+                                      0.35,
+                                      0.1,
+                                      0.35,
+                                    ],
+                                  }}
+                                  transition={{
+                                    duration: 1.8,
+                                    repeat: Infinity,
+                                    ease: "easeInOut",
+                                  }}
+                                  className="
+                                    absolute
+                                    -inset-2
+                                    -z-10
+                                    rounded-full
+                                    bg-indigo-400
+                                  "
+                                />
+                              )}
+
+                              {completed && !active && (
+                                <span
+                                  className="
+                                    absolute
+                                    -bottom-1
+                                    -right-1
+                                    flex
+                                    h-4
+                                    w-4
+                                    items-center
+                                    justify-center
+                                    rounded-full
+                                    bg-white
+                                    text-[8px]
+                                    shadow-sm
+                                    ring-1
+                                    ring-emerald-100
+                                  "
+                                >
+                                  ✓
+                                </span>
+                              )}
+                            </button>
+
+                            {active && (
+                              <motion.div
+                                initial={{
+                                  opacity: 0,
+                                  y: 4,
+                                }}
+                                animate={{
+                                  opacity: 1,
+                                  y: 0,
+                                }}
+                                transition={{
+                                  duration: 0.25,
+                                }}
+                                className="
+                                  absolute
+                                  -bottom-1
+                                  left-1/2
+                                  -translate-x-1/2
+                                  translate-y-full
+                                  whitespace-nowrap
+                                  rounded-full
+                                  bg-indigo-600
+                                  px-2
+                                  py-1
+                                  text-[8px]
+                                  font-black
+                                  text-white
+                                  shadow-md
+                                  sm:text-[9px]
+                                "
+                              >
+                                اینجایی
+                              </motion.div>
+                            )}
+                          </motion.div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+
+            <div className="relative z-20 border-t border-slate-200/70 bg-white/95 px-4 py-3.5 sm:px-5">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[10px] font-black text-slate-700 sm:text-xs">
+                    هر مرحله، یک قدم جلوتر
+                  </p>
+
+                  <p className="mt-0.5 text-[9px] font-medium text-slate-400 sm:text-[10px]">
+                    ⭐⭐⭐ با پیدا کردن ۵ کلمه جایزه یا بیشتر
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowLevelMap(false);
+                    setCurrentLevel(maxUnlockedLevel);
+                  }}
+                  className="
+                    shrink-0
+                    rounded-2xl
+                    bg-gradient-to-r
+                    from-indigo-500
+                    via-violet-500
+                    to-purple-600
+                    px-4
+                    py-2.5
+                    text-[10px]
+                    font-black
+                    text-white
+                    shadow-lg
+                    shadow-indigo-100
+                    transition-all
+                    hover:-translate-y-0.5
+                    hover:shadow-xl
+                    sm:px-5
+                    sm:text-xs
+                  "
+                >
+                  ادامه بازی →
+                </button>
+              </div>
+            </div>
+          </motion.div>
         </div>
-      </div>
-    </motion.div>
-  </div>
-)}
+      )}
 
       {/* =====================================================
           TUTORIAL
