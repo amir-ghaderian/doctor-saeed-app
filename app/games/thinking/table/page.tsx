@@ -769,7 +769,7 @@ export default function TablePage() {
   return (
     <main
       dir="rtl"
-      className="relative h-[100dvh] overflow-hidden bg-[#f5f7fb] px-3 py-2 text-slate-800 sm:min-h-screen sm:h-auto sm:overflow-visible sm:px-6 sm:py-8"
+      className="relative min-h-[100dvh] overflow-x-hidden overflow-y-auto bg-[#f5f7fb] px-3 py-2 pb-4 text-slate-800 sm:min-h-screen sm:overflow-visible sm:px-6 sm:py-8"
       style={{
         backgroundImage: 'url("/pic/bg.jpg")',
         backgroundSize: "cover",
@@ -784,7 +784,7 @@ export default function TablePage() {
         }}
       />
 
-      <div className="relative z-10 mx-auto flex h-full min-h-0 w-full max-w-xl flex-col sm:h-auto sm:min-h-[calc(100vh-4rem)]">
+      <div className="relative z-10 mx-auto flex w-full max-w-xl flex-col sm:min-h-[calc(100vh-4rem)]">
         {/* HEADER */}
         <div className="mb-2 flex items-center justify-between gap-2 sm:mb-5">
           <button
