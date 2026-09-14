@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useEffect, useRef, useState } from "react";
@@ -81,6 +80,8 @@ export default function TablePage() {
   ========================================================= */
 
   useEffect(() => {
+    // یک‌بار اطلاعات پیشرفت قدیمی را پاک می‌کنیم تا منطق جدید نقشه مراحل
+    // و محاسبه ستاره‌ها از صفر شروع شود. موجودی سکه حفظ می‌شود.
     const migrationDone = localStorage.getItem(GAME_MIGRATION_KEY);
 
     if (!migrationDone) {
@@ -113,7 +114,7 @@ export default function TablePage() {
 
     const savedProgressLevel = Number(savedLevel);
     const savedMaxProgress = Number(savedMaxLevel);
-
+    
     const restoredMaxLevel =
       Number.isInteger(savedMaxProgress) &&
       savedMaxProgress >= 1 &&
@@ -124,7 +125,7 @@ export default function TablePage() {
             savedProgressLevel <= TOTAL_LEVELS
           ? savedProgressLevel
           : 1;
-
+    
     setMaxUnlockedLevel(restoredMaxLevel);
 
     if (savedStars) {
@@ -413,24 +414,12 @@ export default function TablePage() {
     setSelectedLetters([]);
     setSelectedLetterIndexes([]);
     setMessage("");
-
-    helpProgressRef.current = {
-      level: currentLevel,
-      word: "",
-      count: 0,
-    };
   };
 
   const removeLastLetter = () => {
     setSelectedLetters((current) => current.slice(0, -1));
     setSelectedLetterIndexes((current) => current.slice(0, -1));
     setMessage("");
-
-    helpProgressRef.current = {
-      level: currentLevel,
-      word: "",
-      count: 0,
-    };
   };
 
   const shuffleLetters = () => {
@@ -489,58 +478,48 @@ export default function TablePage() {
     }
 
     const targetWord = normalizeWord(remainingWords[0]);
-    const currentSelection = normalizeWord(selectedLetters.join(""));
 
-    /*
-     * اگر کلمه‌ای در حال ساخته شدن است، باید حتماً
-     * ابتدای یکی از کلمات هدف باشد.
-     *
-     * در غیر این صورت کمک نباید از جای دیگری از کلمه
-     * یک حرف به کاربر بدهد.
-     */
     if (
-      currentSelection &&
-      !targetWord.startsWith(currentSelection)
+      helpProgressRef.current.level !== currentLevel ||
+      helpProgressRef.current.word !== targetWord
     ) {
+      helpProgressRef.current = {
+        level: currentLevel,
+        word: targetWord,
+        count: 0,
+      };
+    }
+
+    let nextPosition = helpProgressRef.current.count;
+    let helpIndex = -1;
+    let helpLetter = "";
+
+    const usedIndexes = new Set(selectedLetterIndexes);
+
+    while (nextPosition < targetWord.length) {
+      const targetLetter = targetWord[nextPosition];
+
+      const availableIndex = level.letters.findIndex(
+        (letter, index) =>
+          normalizeWord(letter) === normalizeWord(targetLetter) &&
+          !usedIndexes.has(index)
+      );
+
+      if (availableIndex !== -1) {
+        helpIndex = availableIndex;
+        helpLetter = level.letters[availableIndex];
+        break;
+      }
+
+      nextPosition += 1;
+    }
+
+    if (helpIndex === -1) {
       setMessage(
         "اول کلمه فعلی را کامل یا پاک کن، سپس از کمک استفاده کن."
       );
       return;
     }
-
-    /*
-     * تعداد حروف فعلی مشخص می‌کند کمک بعدی باید
-     * کدام حرف کلمه هدف را نشان دهد.
-     *
-     * این روش دیگر به شمارنده قدیمی وابسته نیست و
-     * بعد از پاک کردن کلمه هم از ابتدا شروع می‌شود.
-     */
-    const nextPosition = currentSelection.length;
-
-    if (nextPosition >= targetWord.length) {
-      setMessage(
-        "کلمه فعلی کامل است؛ آن را پیدا کن یا پاک کن."
-      );
-      return;
-    }
-
-    const targetLetter = targetWord[nextPosition];
-    const usedIndexes = new Set(selectedLetterIndexes);
-
-    const helpIndex = level.letters.findIndex(
-      (letter, index) =>
-        normalizeWord(letter) === normalizeWord(targetLetter) &&
-        !usedIndexes.has(index)
-    );
-
-    if (helpIndex === -1) {
-      setMessage(
-        "حرف لازم برای این کمک در حروف باقی‌مانده نیست؛ کلمه فعلی را پاک کن."
-      );
-      return;
-    }
-
-    const helpLetter = level.letters[helpIndex];
 
     helpProgressRef.current = {
       level: currentLevel,
@@ -588,13 +567,6 @@ export default function TablePage() {
         setMessage("این کلمه را قبلاً پیدا کردی.");
         setSelectedLetters([]);
         setSelectedLetterIndexes([]);
-
-        helpProgressRef.current = {
-          level: currentLevel,
-          word: "",
-          count: 0,
-        };
-
         return;
       }
 
@@ -667,12 +639,6 @@ export default function TablePage() {
         setSelectedLetters([]);
         setSelectedLetterIndexes([]);
 
-        helpProgressRef.current = {
-          level: currentLevel,
-          word: "",
-          count: 0,
-        };
-
         setMessage(
           "این کلمه جایزه را قبلاً پیدا کردی."
         );
@@ -698,12 +664,6 @@ export default function TablePage() {
       setSelectedLetters([]);
       setSelectedLetterIndexes([]);
 
-      helpProgressRef.current = {
-        level: currentLevel,
-        word: "",
-        count: 0,
-      };
-
       setMessage(
         "کلمه جایزه پیدا کردی! 🪙 +۱ سکه"
       );
@@ -713,12 +673,6 @@ export default function TablePage() {
 
     setSelectedLetters([]);
     setSelectedLetterIndexes([]);
-
-    helpProgressRef.current = {
-      level: currentLevel,
-      word: "",
-      count: 0,
-    };
   };
 
   /* =========================================================
@@ -751,11 +705,6 @@ export default function TablePage() {
     setShowWin(false);
     setCurrentLevel((current) => current + 1);
   };
-
-  const progress =
-    level.words.length > 0
-      ? (foundWords.length / level.words.length) * 100
-      : 0;
 
   const currentBonusCount =
     foundBonusWordsByLevel[currentLevel]?.length ?? 0;
@@ -820,7 +769,7 @@ export default function TablePage() {
   return (
     <main
       dir="rtl"
-      className="relative min-h-screen overflow-hidden bg-[#f5f7fb] px-4 py-5 text-slate-800 sm:px-6 sm:py-8"
+      className="relative h-[100dvh] overflow-hidden bg-[#f5f7fb] px-3 py-2 text-slate-800 sm:min-h-screen sm:h-auto sm:overflow-visible sm:px-6 sm:py-8"
       style={{
         backgroundImage: 'url("/pic/bg.jpg")',
         backgroundSize: "cover",
@@ -835,15 +784,15 @@ export default function TablePage() {
         }}
       />
 
-      <div className="relative z-10 mx-auto flex min-h-[calc(100vh-2.5rem)] max-w-xl flex-col">
+      <div className="relative z-10 mx-auto flex h-full min-h-0 w-full max-w-xl flex-col sm:h-auto sm:min-h-[calc(100vh-4rem)]">
         {/* HEADER */}
-        <div className="mb-5 flex items-center justify-between gap-2">
+        <div className="mb-2 flex items-center justify-between gap-2 sm:mb-5">
           <button
             type="button"
             onClick={() => {
               window.location.href = "/games";
             }}
-            className="flex items-center gap-1 rounded-2xl bg-white px-4 py-2.5 text-sm font-bold text-slate-500 shadow-sm ring-1 ring-slate-200 transition hover:text-slate-800"
+            className="flex items-center gap-1 rounded-2xl bg-white px-3 py-2 text-xs font-bold sm:px-4 sm:py-2.5 sm:text-sm text-slate-500 shadow-sm ring-1 ring-slate-200 transition hover:text-slate-800"
           >
             <span>→</span>
             منوی اصلی
@@ -852,13 +801,13 @@ export default function TablePage() {
           <button
             type="button"
             onClick={() => setShowLevelMap(true)}
-            className="flex items-center gap-2 rounded-2xl bg-white px-4 py-2.5 text-sm font-black text-indigo-600 shadow-sm ring-1 ring-indigo-100 transition hover:-translate-y-0.5 hover:shadow-md"
+            className="flex items-center gap-1.5 rounded-2xl bg-white px-3 py-2 text-xs font-black sm:gap-2 sm:px-4 sm:py-2.5 sm:text-sm text-indigo-600 shadow-sm ring-1 ring-indigo-100 transition hover:-translate-y-0.5 hover:shadow-md"
           >
             <span>🗺️</span>
             مراحل
           </button>
 
-          <div className="flex items-center gap-2 rounded-2xl bg-white px-4 py-2.5 shadow-sm ring-1 ring-slate-200">
+          <div className="flex items-center gap-1.5 rounded-2xl bg-white px-3 py-2 shadow-sm ring-1 ring-slate-200 sm:gap-2 sm:px-4 sm:py-2.5">
             <span className="text-lg">🪙</span>
             <span className="font-black text-slate-700">
               {coins}
@@ -867,8 +816,8 @@ export default function TablePage() {
         </div>
 
         {/* TITLE */}
-        <div className="mb-5 text-center">
-          <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-[22px] bg-gradient-to-br from-indigo-500 to-purple-500 text-3xl shadow-lg shadow-indigo-200">
+        <div className="mb-2 text-center sm:mb-5">
+          <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-[18px] bg-gradient-to-br from-indigo-500 to-purple-500 text-2xl shadow-lg shadow-indigo-200 sm:mb-3 sm:h-16 sm:w-16 sm:rounded-[22px] sm:text-3xl">
             🧩
           </div>
 
@@ -876,54 +825,19 @@ export default function TablePage() {
             کَلَمَک
           </p>
 
-          <h1 className="mt-1 text-3xl font-black text-slate-800 sm:text-4xl">
+          <h1 className="mt-0.5 text-2xl font-black text-slate-800 sm:mt-1 sm:text-4xl">
             مرحله {currentLevel}
           </h1>
 
-          <p className="mt-2 text-sm text-slate-500">
+          <p className="mt-1 text-xs text-slate-500 sm:mt-2 sm:text-sm">
             حروف را به هم وصل کن و کلمات را پیدا کن
           </p>
-        </div>
-
-        {/* PROGRESS */}
-        <div className="mb-5 rounded-[28px] bg-white p-4 shadow-sm ring-1 ring-slate-200 sm:p-5">
-          <div className="mb-4 flex items-center justify-between">
-            <div>
-              <p className="text-[11px] font-bold text-slate-400">
-                پیشرفت مرحله
-              </p>
-
-              <p className="mt-1 text-sm font-black text-slate-700">
-                {foundWords.length} از {level.words.length} کلمه
-              </p>
-            </div>
-
-            <div className="flex items-center gap-2">
-              {currentStars > 0 && (
-                <div className="rounded-2xl bg-yellow-50 px-3 py-2 text-sm">
-                  {"⭐".repeat(currentStars)}
-                </div>
-              )}
-
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-indigo-50 text-sm font-black text-indigo-600">
-                {Math.round(progress)}%
-              </div>
-            </div>
-          </div>
-
-          <div className="h-2 overflow-hidden rounded-full bg-slate-100">
-            <motion.div
-              animate={{ width: `${progress}%` }}
-              transition={{ duration: 0.45 }}
-              className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-purple-500"
-            />
-          </div>
         </div>
 
         {/* WORDS */}
         <div
           ref={wordsRef}
-          className="mb-5 rounded-[32px] bg-white p-4 shadow-md ring-1 ring-slate-200 sm:p-6"
+          className="mb-2 rounded-[28px] bg-white p-3 shadow-md ring-1 ring-slate-200 sm:mb-5 sm:rounded-[32px] sm:p-6"
         >
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             {level.words.map((word) => {
@@ -940,7 +854,7 @@ export default function TablePage() {
                       ? { scale: [1, 1.05, 1] }
                       : {}
                   }
-                  className={`flex min-h-[58px] items-center justify-center rounded-2xl border-2 px-3 text-center font-black transition-all ${
+                  className={`flex min-h-[44px] items-center justify-center rounded-2xl border-2 px-2 text-center text-sm font-black transition-all sm:min-h-[58px] sm:px-3 sm:text-base ${
                     found
                       ? "border-emerald-200 bg-emerald-50 text-emerald-600"
                       : "border-slate-100 bg-slate-50 text-slate-300"
@@ -957,13 +871,13 @@ export default function TablePage() {
             })}
           </div>
 
-          <div className="mt-5 flex min-h-[64px] items-center justify-center rounded-2xl border-2 border-dashed border-indigo-100 bg-indigo-50 px-4">
+          <div className="mt-2 flex min-h-[48px] items-center justify-center rounded-2xl border-2 border-dashed border-indigo-100 bg-indigo-50 px-4">
             {currentWord ? (
               <motion.span
                 key={currentWord}
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="text-2xl font-black tracking-[0.25em] text-indigo-600"
+                className="text-xl font-black tracking-[0.2em] text-indigo-600 sm:text-2xl sm:tracking-[0.25em]"
               >
                 {currentWord}
               </motion.span>
@@ -974,12 +888,12 @@ export default function TablePage() {
             )}
           </div>
 
-          <div className="mt-3 flex min-h-8 items-center justify-center">
+          <div className="mt-1 flex min-h-6 items-center justify-center sm:mt-3 sm:min-h-8">
             {message && (
               <motion.div
                 initial={{ opacity: 0, y: 5 }}
                 animate={{ opacity: 1, y: 0 }}
-                className={`rounded-full px-4 py-2 text-xs font-bold ${
+                className={`rounded-full px-3 py-1.5 text-[11px] font-bold sm:px-4 sm:py-2 sm:text-xs ${
                   message.includes("درست") ||
                   message.includes("جایزه") ||
                   message.includes("روشن")
@@ -996,15 +910,15 @@ export default function TablePage() {
         {/* LETTERS */}
         <div
           ref={lettersRef}
-          className="rounded-[36px] bg-white p-5 shadow-lg ring-1 ring-slate-200 sm:p-7"
+          className="rounded-[30px] bg-white p-3 shadow-lg ring-1 ring-slate-200 sm:rounded-[36px] sm:p-7"
         >
-          <div className="mb-6 text-center">
+          <div className="mb-2 text-center sm:mb-6">
             <p className="text-xs font-bold text-slate-400">
               حروف مرحله
             </p>
           </div>
 
-          <div className="mb-7 flex flex-wrap justify-center gap-3 sm:gap-4">
+          <div className="mb-3 flex flex-wrap justify-center gap-2 sm:mb-7 sm:gap-4">
             {displayLetters.map(
               ({ letter, originalIndex }) => {
                 const selected =
@@ -1022,7 +936,7 @@ export default function TablePage() {
                         originalIndex
                       )
                     }
-                    className={`flex h-[62px] w-[62px] items-center justify-center rounded-full border-[5px] text-2xl font-black text-white shadow-md transition-all sm:h-[72px] sm:w-[72px] sm:text-3xl ${
+                    className={`flex h-[52px] w-[52px] items-center justify-center rounded-full border-[4px] text-xl font-black text-white shadow-md transition-all sm:h-[72px] sm:w-[72px] sm:border-[5px] sm:text-3xl ${
                       selected
                         ? "border-emerald-300 bg-gradient-to-br from-emerald-400 to-teal-500"
                         : "border-indigo-100 bg-gradient-to-br from-indigo-500 to-purple-500"
@@ -1041,7 +955,7 @@ export default function TablePage() {
               whileTap={{ scale: 0.94 }}
               onClick={removeLastLetter}
               disabled={!selectedLetters.length}
-              className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-xl font-black text-slate-500 transition hover:bg-slate-200 disabled:opacity-30"
+              className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-lg font-black text-slate-500 sm:h-12 sm:w-12 sm:text-xl transition hover:bg-slate-200 disabled:opacity-30"
               aria-label="حذف آخرین حرف"
               title="حذف آخرین حرف"
             >
@@ -1054,7 +968,7 @@ export default function TablePage() {
               whileTap={{ scale: 0.96 }}
               onClick={submitWord}
               disabled={!currentWord}
-              className="h-12 flex-1 rounded-2xl bg-gradient-to-r from-indigo-500 to-purple-500 px-6 font-black text-white shadow-lg shadow-indigo-100 transition hover:shadow-xl disabled:opacity-30"
+              className="h-11 flex-1 rounded-2xl bg-gradient-to-r from-indigo-500 to-purple-500 px-4 text-sm font-black text-white shadow-lg shadow-indigo-100 transition hover:shadow-xl disabled:opacity-30 sm:h-12 sm:px-6 sm:text-base"
             >
               پیدا کن
             </motion.button>
@@ -1064,7 +978,7 @@ export default function TablePage() {
               whileTap={{ scale: 0.94 }}
               onClick={clearWord}
               disabled={!selectedLetters.length}
-              className="h-12 w-12 rounded-2xl bg-slate-100 text-xs font-black text-slate-500 transition hover:bg-slate-200 disabled:opacity-30"
+              className="h-11 w-11 rounded-2xl bg-slate-100 text-[11px] font-black text-slate-500 sm:h-12 sm:w-12 sm:text-xs transition hover:bg-slate-200 disabled:opacity-30"
               aria-label="پاک کردن کلمه"
               title="پاک کردن کلمه"
             >
@@ -1072,38 +986,32 @@ export default function TablePage() {
             </motion.button>
           </div>
 
-          <div className="mt-4 flex items-end justify-evenly">
+          <div className="mt-3 flex w-full items-center gap-2 sm:mt-4 sm:gap-3">
             <motion.button
               type="button"
               whileTap={{ scale: 0.96 }}
               onClick={shuffleLetters}
               disabled={displayLetters.length < 2}
-              className="flex h-12 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-sky-500 to-cyan-500 font-black text-white shadow-lg transition hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-40"
+              className="flex h-11 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-2xl bg-gradient-to-r from-sky-500 to-cyan-500 px-2 text-xs font-black text-white shadow-lg transition hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-40 sm:h-12 sm:gap-2 sm:text-sm"
               aria-label="جابجایی حروف"
               title="جابجایی حروف"
             >
-              <span className="text-lg">🔀</span>
+              <span className="text-base sm:text-lg">🔀</span>
               <span>جابجایی</span>
             </motion.button>
 
-            <div className="mt-4 flex justify-center">
-              <div
-                ref={coinJarRef}
-                className="flex items-center gap-3 rounded-2xl bg-white px-5 py-3 shadow-sm ring-1 ring-slate-200"
-              >
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-yellow-50 text-xl">
-                  🏺
-                </div>
-
-                <div>
-                  <p className="text-[10px] font-bold text-slate-400">
-                    کوزه امتیاز
-                  </p>
-
-                  <p className="text-sm font-black text-yellow-500">
-                    {coins} سکه
-                  </p>
-                </div>
+            <div
+              ref={coinJarRef}
+              className="flex h-11 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-2xl bg-white px-2 shadow-lg ring-1 ring-slate-200 sm:h-12 sm:gap-2 sm:px-3"
+            >
+              <span className="text-lg sm:text-xl">🏺</span>
+              <div className="min-w-0 text-center leading-none">
+                <p className="text-[9px] font-bold text-slate-400 sm:text-[10px]">
+                  کوزه
+                </p>
+                <p className="mt-1 text-xs font-black text-yellow-500 sm:text-sm">
+                  {coins} سکه
+                </p>
               </div>
             </div>
 
@@ -1115,22 +1023,15 @@ export default function TablePage() {
                 coins < 5 ||
                 foundWords.length === level.words.length
               }
-              className="flex h-12 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-amber-400 to-yellow-500 font-black text-white shadow-lg transition hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-40"
+              className="flex h-11 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-2xl bg-gradient-to-r from-amber-400 to-yellow-500 px-2 text-xs font-black text-white shadow-lg transition hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-40 sm:h-12 sm:gap-2 sm:text-sm"
             >
-              <span className="text-lg">💡</span>
+              <span className="text-base sm:text-lg">💡</span>
               <span>کمک</span>
-              <span className="rounded-full bg-white/20 px-2 py-0.5 text-xs">
+              <span className="rounded-full bg-white/20 px-1.5 py-0.5 text-[10px] sm:px-2 sm:text-xs">
                 ۵ 🪙
               </span>
             </motion.button>
           </div>
-        </div>
-
-        {/* FOOTER */}
-        <div className="mt-6 pb-4 text-center">
-          <p className="text-[10px] font-bold text-slate-400">
-            مرحله {currentLevel} از {TOTAL_LEVELS}
-          </p>
         </div>
       </div>
 
@@ -1138,491 +1039,492 @@ export default function TablePage() {
           LEVEL MAP MODAL
       ===================================================== */}
 
-      {showLevelMap && (
-        <div
-          dir="rtl"
-          className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/45 px-3 py-4 backdrop-blur-[4px]"
+{showLevelMap && (
+  <div
+    dir="rtl"
+    className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/45 px-3 py-4 backdrop-blur-[4px]"
+  >
+    <motion.div
+      initial={{ opacity: 0, scale: 0.95, y: 18 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      transition={{
+        duration: 0.35,
+        ease: [0.22, 1, 0.36, 1],
+      }}
+      className="
+        relative
+        flex
+        max-h-[88vh]
+        w-full
+        max-w-2xl
+        flex-col
+        overflow-hidden
+        rounded-[32px]
+        border
+        border-white/70
+        bg-[#f7faf6]
+        shadow-[0_30px_90px_rgba(15,23,42,0.30)]
+      "
+    >
+      {/* =================================================
+          HEADER
+      ================================================== */}
+
+      <div className="relative z-20 border-b border-slate-200/70 bg-white/95 px-5 py-4 sm:px-7">
+        <button
+          type="button"
+          onClick={() => setShowLevelMap(false)}
+          className="
+            absolute
+            left-4
+            top-4
+            flex
+            h-9
+            w-9
+            items-center
+            justify-center
+            rounded-full
+            border
+            border-slate-200
+            bg-slate-50
+            text-lg
+            font-black
+            text-slate-500
+            transition-all
+            hover:scale-105
+            hover:bg-slate-100
+          "
+          aria-label="بستن"
         >
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 18 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            transition={{
-              duration: 0.35,
-              ease: [0.22, 1, 0.36, 1],
-            }}
+          ×
+        </button>
+
+        <div className="text-center">
+          <div
             className="
-              relative
+              mx-auto
+              mb-2.5
               flex
-              max-h-[88vh]
-              w-full
-              max-w-2xl
-              flex-col
-              overflow-hidden
-              rounded-[32px]
-              border
-              border-white/70
-              bg-[#f7faf6]
-              shadow-[0_30px_90px_rgba(15,23,42,0.30)]
+              h-11
+              w-11
+              items-center
+              justify-center
+              rounded-[16px]
+              bg-gradient-to-br
+              from-indigo-500
+              via-violet-500
+              to-purple-600
+              text-xl
+              shadow-lg
+              shadow-indigo-100
             "
           >
-            <div className="relative z-20 border-b border-slate-200/70 bg-white/95 px-5 py-4 sm:px-7">
-              <button
-                type="button"
-                onClick={() => setShowLevelMap(false)}
-                className="
-                  absolute
-                  left-4
-                  top-4
-                  flex
-                  h-9
-                  w-9
-                  items-center
-                  justify-center
-                  rounded-full
-                  border
-                  border-slate-200
-                  bg-slate-50
-                  text-lg
-                  font-black
-                  text-slate-500
-                  transition-all
-                  hover:scale-105
-                  hover:bg-slate-100
-                "
-                aria-label="بستن"
-              >
-                ×
-              </button>
+            🗺️
+          </div>
 
-              <div className="text-center">
-                <div
-                  className="
-                    mx-auto
-                    mb-2.5
-                    flex
-                    h-11
-                    w-11
-                    items-center
-                    justify-center
-                    rounded-[16px]
-                    bg-gradient-to-br
-                    from-indigo-500
-                    via-violet-500
-                    to-purple-600
-                    text-xl
-                    shadow-lg
-                    shadow-indigo-100
-                  "
-                >
-                  🗺️
-                </div>
+          <p className="text-[10px] font-black tracking-wide text-indigo-500">
+            مسیر پیشرفت
+          </p>
 
-                <p className="text-[10px] font-black tracking-wide text-indigo-500">
-                  مسیر پیشرفت
-                </p>
+          <h2 className="mt-0.5 text-xl font-black text-slate-800 sm:text-2xl">
+            سفر کَلَمَک
+          </h2>
 
-                <h2 className="mt-0.5 text-xl font-black text-slate-800 sm:text-2xl">
-                  سفر کَلَمَک
-                </h2>
-
-                <div className="mt-2.5 flex items-center justify-center gap-2">
-                  <div className="rounded-full bg-indigo-50 px-3 py-1 text-[10px] font-black text-indigo-600 sm:text-xs">
-                    مرحله {maxUnlockedLevel} از {TOTAL_LEVELS}
-                  </div>
-
-                  <div className="rounded-full bg-amber-50 px-3 py-1 text-[10px] font-black text-amber-500 sm:text-xs">
-                    ⭐{" "}
-                    {Object.values(levelStars).reduce(
-                      (sum, value) => sum + value,
-                      0
-                    )}
-                  </div>
-                </div>
-              </div>
+          <div className="mt-2.5 flex items-center justify-center gap-2">
+            <div className="rounded-full bg-indigo-50 px-3 py-1 text-[10px] font-black text-indigo-600 sm:text-xs">
+              مرحله {maxUnlockedLevel} از {TOTAL_LEVELS}
             </div>
 
-            <div className="relative flex-1 overflow-y-auto px-3 py-5 sm:px-5 sm:py-6">
-              <div className="pointer-events-none absolute inset-0 overflow-hidden">
-                <div className="absolute -right-20 top-10 h-36 w-36 rounded-full bg-emerald-100/60 blur-3xl" />
-                <div className="absolute -left-20 bottom-10 h-40 w-40 rounded-full bg-indigo-100/60 blur-3xl" />
-                <div className="absolute right-[18%] top-[25%] h-16 w-16 rounded-full bg-amber-100/40 blur-2xl" />
-                <div className="absolute left-[20%] top-[60%] h-20 w-20 rounded-full bg-purple-100/30 blur-2xl" />
+            <div className="rounded-full bg-amber-50 px-3 py-1 text-[10px] font-black text-amber-500 sm:text-xs">
+              ⭐{" "}
+              {Object.values(levelStars).reduce(
+                (sum, value) => sum + value,
+                0
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
 
-                <div className="absolute right-3 top-3 text-xl opacity-35">
-                  🌿
-                </div>
+      {/* =================================================
+          MAP AREA
+      ================================================== */}
 
-                <div className="absolute left-4 top-[28%] text-xl opacity-30">
-                  🍃
-                </div>
+      <div className="relative flex-1 overflow-y-auto px-3 py-5 sm:px-5 sm:py-6">
+        {/* BACKGROUND DECOR */}
+        <div className="pointer-events-none absolute inset-0 overflow-hidden">
+          <div className="absolute -right-20 top-10 h-36 w-36 rounded-full bg-emerald-100/60 blur-3xl" />
+          <div className="absolute -left-20 bottom-10 h-40 w-40 rounded-full bg-indigo-100/60 blur-3xl" />
+          <div className="absolute right-[18%] top-[25%] h-16 w-16 rounded-full bg-amber-100/40 blur-2xl" />
+          <div className="absolute left-[20%] top-[60%] h-20 w-20 rounded-full bg-purple-100/30 blur-2xl" />
 
-                <div className="absolute right-6 bottom-[18%] text-xl opacity-30">
-                  🌱
-                </div>
+          <div className="absolute right-3 top-3 text-xl opacity-35">
+            🌿
+          </div>
 
-                <div className="absolute left-7 bottom-5 text-xl opacity-25">
-                  🍀
-                </div>
-              </div>
+          <div className="absolute left-4 top-[28%] text-xl opacity-30">
+            🍃
+          </div>
 
-              {(() => {
-                const columns = 6;
-                const rows = Math.ceil(mapLevels.length / columns);
+          <div className="absolute right-6 bottom-[18%] text-xl opacity-30">
+            🌱
+          </div>
 
-                const points = mapLevels.map((_, index) => {
-                  const row = Math.floor(index / columns);
-                  const position = index % columns;
+          <div className="absolute left-7 bottom-5 text-xl opacity-25">
+            🍀
+          </div>
+        </div>
 
-                  const column =
-                    row % 2 === 0
-                      ? position
-                      : columns - 1 - position;
+        {/*
+          6 ستون:
+          هر ردیف جهتش عوض می‌شود و مسیر حالت مارپیچی پیدا می‌کند.
+        */}
+        {(() => {
+          const columns = 6;
+          const rows = Math.ceil(mapLevels.length / columns);
 
-                  const x = ((column + 0.5) / columns) * 100;
-                  const y = ((row + 0.5) / rows) * 100;
+          const points = mapLevels.map((_, index) => {
+            const row = Math.floor(index / columns);
+            const position = index % columns;
 
-                  return { x, y };
-                });
+            const column =
+              row % 2 === 0
+                ? position
+                : columns - 1 - position;
 
-                const pathData = points
-                  .map((point, index) => {
-                    if (index === 0) {
-                      return `M ${point.x} ${point.y}`;
-                    }
+            const x = ((column + 0.5) / columns) * 100;
+            const y = ((row + 0.5) / rows) * 100;
 
-                    const previous = points[index - 1];
+            return { x, y };
+          });
 
-                    const controlX =
-                      (previous.x + point.x) / 2;
-                    const controlY =
-                      (previous.y + point.y) / 2;
+          const pathData = points
+            .map((point, index) => {
+              if (index === 0) {
+                return `M ${point.x} ${point.y}`;
+              }
 
-                    return `Q ${controlX} ${previous.y}, ${point.x} ${point.y}`;
-                  })
-                  .join(" ");
+              const previous = points[index - 1];
 
-                return (
-                  <div className="relative mx-auto w-full max-w-[610px]">
-                    <svg
-                      viewBox="0 0 100 100"
-                      preserveAspectRatio="none"
-                      className="pointer-events-none absolute inset-0 z-0 h-full w-full"
-                    >
-                      <defs>
-                        <linearGradient
-                          id="levelPathGradient"
-                          x1="0%"
-                          y1="0%"
-                          x2="100%"
-                          y2="100%"
-                        >
-                          <stop
-                            offset="0%"
-                            stopColor="#818cf8"
-                          />
-                          <stop
-                            offset="45%"
-                            stopColor="#a78bfa"
-                          />
-                          <stop
-                            offset="100%"
-                            stopColor="#34d399"
-                          />
-                        </linearGradient>
-                      </defs>
+              const controlX = (previous.x + point.x) / 2;
+              const controlY = (previous.y + point.y) / 2;
 
-                      <path
-                        d={pathData}
-                        fill="none"
-                        stroke="rgba(255,255,255,0.95)"
-                        strokeWidth="7"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
+              return `Q ${controlX} ${previous.y}, ${point.x} ${point.y}`;
+            })
+            .join(" ");
 
-                      <path
-                        d={pathData}
-                        fill="none"
-                        stroke="url(#levelPathGradient)"
-                        strokeWidth="2.2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeDasharray="1.5 1"
-                      />
-                    </svg>
+          return (
+            <div className="relative mx-auto w-full max-w-[610px]">
+              {/* PATH */}
+              <svg
+                viewBox="0 0 100 100"
+                preserveAspectRatio="none"
+                className="pointer-events-none absolute inset-0 z-0 h-full w-full"
+              >
+                <defs>
+                  <linearGradient
+                    id="levelPathGradient"
+                    x1="0%"
+                    y1="0%"
+                    x2="100%"
+                    y2="100%"
+                  >
+                    <stop offset="0%" stopColor="#818cf8" />
+                    <stop offset="45%" stopColor="#a78bfa" />
+                    <stop offset="100%" stopColor="#34d399" />
+                  </linearGradient>
+                </defs>
 
-                    <div
-                      className="relative z-10 grid"
-                      style={{
-                        gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
-                        gridAutoRows: "76px",
+                <path
+                  d={pathData}
+                  fill="none"
+                  stroke="rgba(255,255,255,0.95)"
+                  strokeWidth="7"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+
+                <path
+                  d={pathData}
+                  fill="none"
+                  stroke="url(#levelPathGradient)"
+                  strokeWidth="2.2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeDasharray="1.5 1"
+                />
+              </svg>
+
+              {/* LEVEL GRID */}
+              <div
+                className="relative z-10 grid"
+                style={{
+                  gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
+                  gridAutoRows: "76px",
+                }}
+              >
+                {mapLevels.map((levelNumber, index) => {
+                  const unlocked = levelNumber <= maxUnlockedLevel;
+                  const completed = Boolean(levelStars[levelNumber]);
+                  const stars = levelStars[levelNumber] ?? 0;
+                  const active = levelNumber === currentLevel;
+
+                  return (
+                    <motion.div
+                      key={levelNumber}
+                      initial={{
+                        opacity: 0,
+                        scale: 0.8,
+                        y: 10,
                       }}
+                      animate={{
+                        opacity: 1,
+                        scale: 1,
+                        y: 0,
+                      }}
+                      transition={{
+                        delay: Math.min(index * 0.025, 0.4),
+                        duration: 0.35,
+                        ease: [0.22, 1, 0.36, 1],
+                      }}
+                      className="relative flex items-center justify-center"
                     >
-                      {mapLevels.map((levelNumber, index) => {
-                        const unlocked =
-                          levelNumber <= maxUnlockedLevel;
-                        const completed =
-                          Boolean(levelStars[levelNumber]);
-                        const stars =
-                          levelStars[levelNumber] ?? 0;
-                        const active =
-                          levelNumber === currentLevel;
+                      {/* LEVEL NODE */}
+                      <button
+                        type="button"
+                        disabled={!unlocked}
+                        onClick={() => selectLevel(levelNumber)}
+                        className={`
+                          group
+                          relative
+                          flex
+                          h-[54px]
+                          w-[54px]
+                          items-center
+                          justify-center
+                          rounded-full
+                          border-[4px]
+                          font-black
+                          shadow-lg
+                          transition-all
+                          duration-200
+                          sm:h-[60px]
+                          sm:w-[60px]
 
-                        return (
-                          <motion.div
-                            key={levelNumber}
-                            initial={{
-                              opacity: 0,
-                              scale: 0.8,
-                              y: 10,
-                            }}
-                            animate={{
-                              opacity: 1,
-                              scale: 1,
-                              y: 0,
-                            }}
-                            transition={{
-                              delay: Math.min(
-                                index * 0.025,
-                                0.4
-                              ),
-                              duration: 0.35,
-                              ease: [0.22, 1, 0.36, 1],
-                            }}
-                            className="relative flex items-center justify-center"
-                          >
-                            <button
-                              type="button"
-                              disabled={!unlocked}
-                              onClick={() =>
-                                selectLevel(levelNumber)
-                              }
-                              className={`
-                                group
-                                relative
-                                flex
-                                h-[54px]
-                                w-[54px]
-                                items-center
-                                justify-center
-                                rounded-full
-                                border-[4px]
-                                font-black
-                                shadow-lg
-                                transition-all
-                                duration-200
-                                sm:h-[60px]
-                                sm:w-[60px]
-
-                                ${
-                                  active
-                                    ? `
-                                      border-indigo-200
-                                      bg-gradient-to-br
-                                      from-indigo-500
-                                      via-violet-500
-                                      to-purple-600
-                                      text-white
-                                      shadow-indigo-200
-                                      ring-4
-                                      ring-indigo-100/70
-                                    `
-                                    : completed
-                                      ? `
-                                        border-emerald-100
-                                        bg-gradient-to-br
-                                        from-emerald-400
-                                        to-teal-500
-                                        text-white
-                                        shadow-emerald-100
-                                      `
-                                      : unlocked
-                                        ? `
-                                          border-white
-                                          bg-white
-                                          text-slate-700
-                                          shadow-slate-200
-                                          hover:-translate-y-1
-                                          hover:scale-105
-                                        `
-                                        : `
-                                          border-slate-200
-                                          bg-slate-100
-                                          text-slate-300
-                                        `
-                                }
-                              `}
-                            >
-                              {completed && (
-                                <span
-                                  className="
-                                    absolute
-                                    -top-2
-                                    left-1/2
-                                    -translate-x-1/2
-                                    rounded-full
-                                    border
+                          ${
+                            active
+                              ? `
+                                border-indigo-200
+                                bg-gradient-to-br
+                                from-indigo-500
+                                via-violet-500
+                                to-purple-600
+                                text-white
+                                shadow-indigo-200
+                                ring-4
+                                ring-indigo-100/70
+                              `
+                              : completed
+                                ? `
+                                  border-emerald-100
+                                  bg-gradient-to-br
+                                  from-emerald-400
+                                  to-teal-500
+                                  text-white
+                                  shadow-emerald-100
+                                `
+                                : unlocked
+                                  ? `
                                     border-white
                                     bg-white
-                                    px-1.5
-                                    py-0.5
-                                    text-[8px]
-                                    leading-none
-                                    shadow-sm
-                                  "
-                                >
-                                  {"⭐".repeat(stars)}
-                                </span>
-                              )}
+                                    text-slate-700
+                                    shadow-slate-200
+                                    hover:-translate-y-1
+                                    hover:scale-105
+                                  `
+                                  : `
+                                    border-slate-200
+                                    bg-slate-100
+                                    text-slate-300
+                                  `
+                          }
+                        `}
+                      >
+                        {/* TOP MINI BADGE */}
+                        {completed && (
+                          <span
+                            className="
+                              absolute
+                              -top-2
+                              left-1/2
+                              -translate-x-1/2
+                              rounded-full
+                              border
+                              border-white
+                              bg-white
+                              px-1.5
+                              py-0.5
+                              text-[8px]
+                              leading-none
+                              shadow-sm
+                            "
+                          >
+                            {"⭐".repeat(stars)}
+                          </span>
+                        )}
 
-                              {unlocked ? (
-                                <span className="text-lg sm:text-xl">
-                                  {levelNumber}
-                                </span>
-                              ) : (
-                                <span className="text-lg opacity-80">
-                                  🔒
-                                </span>
-                              )}
+                        {/* MAIN CONTENT */}
+                        {unlocked ? (
+                          <span className="text-lg sm:text-xl">
+                            {levelNumber}
+                          </span>
+                        ) : (
+                          <span className="text-lg opacity-80">
+                            🔒
+                          </span>
+                        )}
 
-                              {active && (
-                                <motion.span
-                                  animate={{
-                                    scale: [1, 1.15, 1],
-                                    opacity: [
-                                      0.35,
-                                      0.1,
-                                      0.35,
-                                    ],
-                                  }}
-                                  transition={{
-                                    duration: 1.8,
-                                    repeat: Infinity,
-                                    ease: "easeInOut",
-                                  }}
-                                  className="
-                                    absolute
-                                    -inset-2
-                                    -z-10
-                                    rounded-full
-                                    bg-indigo-400
-                                  "
-                                />
-                              )}
+                        {/* ACTIVE GLOW */}
+                        {active && (
+                          <motion.span
+                            animate={{
+                              scale: [1, 1.15, 1],
+                              opacity: [0.35, 0.1, 0.35],
+                            }}
+                            transition={{
+                              duration: 1.8,
+                              repeat: Infinity,
+                              ease: "easeInOut",
+                            }}
+                            className="
+                              absolute
+                              -inset-2
+                              -z-10
+                              rounded-full
+                              bg-indigo-400
+                            "
+                          />
+                        )}
 
-                              {completed && !active && (
-                                <span
-                                  className="
-                                    absolute
-                                    -bottom-1
-                                    -right-1
-                                    flex
-                                    h-4
-                                    w-4
-                                    items-center
-                                    justify-center
-                                    rounded-full
-                                    bg-white
-                                    text-[8px]
-                                    shadow-sm
-                                    ring-1
-                                    ring-emerald-100
-                                  "
-                                >
-                                  ✓
-                                </span>
-                              )}
-                            </button>
+                        {/* COMPLETED DOT */}
+                        {completed && !active && (
+                          <span
+                            className="
+                              absolute
+                              -bottom-1
+                              -right-1
+                              flex
+                              h-4
+                              w-4
+                              items-center
+                              justify-center
+                              rounded-full
+                              bg-white
+                              text-[8px]
+                              shadow-sm
+                              ring-1
+                              ring-emerald-100
+                            "
+                          >
+                            ✓
+                          </span>
+                        )}
+                      </button>
 
-                            {active && (
-                              <motion.div
-                                initial={{
-                                  opacity: 0,
-                                  y: 4,
-                                }}
-                                animate={{
-                                  opacity: 1,
-                                  y: 0,
-                                }}
-                                transition={{
-                                  duration: 0.25,
-                                }}
-                                className="
-                                  absolute
-                                  -bottom-1
-                                  left-1/2
-                                  -translate-x-1/2
-                                  translate-y-full
-                                  whitespace-nowrap
-                                  rounded-full
-                                  bg-indigo-600
-                                  px-2
-                                  py-1
-                                  text-[8px]
-                                  font-black
-                                  text-white
-                                  shadow-md
-                                  sm:text-[9px]
-                                "
-                              >
-                                اینجایی
-                              </motion.div>
-                            )}
-                          </motion.div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })()}
-            </div>
-
-            <div className="relative z-20 border-t border-slate-200/70 bg-white/95 px-4 py-3.5 sm:px-5">
-              <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-[10px] font-black text-slate-700 sm:text-xs">
-                    هر مرحله، یک قدم جلوتر
-                  </p>
-
-                  <p className="mt-0.5 text-[9px] font-medium text-slate-400 sm:text-[10px]">
-                    ⭐⭐⭐ با پیدا کردن ۵ کلمه جایزه یا بیشتر
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowLevelMap(false);
-                    setCurrentLevel(maxUnlockedLevel);
-                  }}
-                  className="
-                    shrink-0
-                    rounded-2xl
-                    bg-gradient-to-r
-                    from-indigo-500
-                    via-violet-500
-                    to-purple-600
-                    px-4
-                    py-2.5
-                    text-[10px]
-                    font-black
-                    text-white
-                    shadow-lg
-                    shadow-indigo-100
-                    transition-all
-                    hover:-translate-y-0.5
-                    hover:shadow-xl
-                    sm:px-5
-                    sm:text-xs
-                  "
-                >
-                  ادامه بازی →
-                </button>
+                      {/* ACTIVE LABEL */}
+                      {active && (
+                        <motion.div
+                          initial={{
+                            opacity: 0,
+                            y: 4,
+                          }}
+                          animate={{
+                            opacity: 1,
+                            y: 0,
+                          }}
+                          transition={{
+                            duration: 0.25,
+                          }}
+                          className="
+                            absolute
+                            -bottom-1
+                            left-1/2
+                            -translate-x-1/2
+                            translate-y-full
+                            whitespace-nowrap
+                            rounded-full
+                            bg-indigo-600
+                            px-2
+                            py-1
+                            text-[8px]
+                            font-black
+                            text-white
+                            shadow-md
+                            sm:text-[9px]
+                          "
+                        >
+                          اینجایی
+                        </motion.div>
+                      )}
+                    </motion.div>
+                  );
+                })}
               </div>
             </div>
-          </motion.div>
+          );
+        })()}
+      </div>
+
+      {/* =================================================
+          FOOTER
+      ================================================== */}
+
+      <div className="relative z-20 border-t border-slate-200/70 bg-white/95 px-4 py-3.5 sm:px-5">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[10px] font-black text-slate-700 sm:text-xs">
+              هر مرحله، یک قدم جلوتر
+            </p>
+
+            <p className="mt-0.5 text-[9px] font-medium text-slate-400 sm:text-[10px]">
+              ⭐⭐⭐ با پیدا کردن ۵ کلمه جایزه یا بیشتر
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              setShowLevelMap(false);
+              setCurrentLevel(maxUnlockedLevel);
+            }}
+            className="
+              shrink-0
+              rounded-2xl
+              bg-gradient-to-r
+              from-indigo-500
+              via-violet-500
+              to-purple-600
+              px-4
+              py-2.5
+              text-[10px]
+              font-black
+              text-white
+              shadow-lg
+              shadow-indigo-100
+              transition-all
+              hover:-translate-y-0.5
+              hover:shadow-xl
+              sm:px-5
+              sm:text-xs
+            "
+          >
+            ادامه بازی →
+          </button>
         </div>
-      )}
+      </div>
+    </motion.div>
+  </div>
+)}
 
       {/* =====================================================
           TUTORIAL
