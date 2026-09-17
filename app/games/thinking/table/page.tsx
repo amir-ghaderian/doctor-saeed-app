@@ -114,18 +114,18 @@ export default function TablePage() {
 
     const savedProgressLevel = Number(savedLevel);
     const savedMaxProgress = Number(savedMaxLevel);
-    
+
     const restoredMaxLevel =
       Number.isInteger(savedMaxProgress) &&
-      savedMaxProgress >= 1 &&
-      savedMaxProgress <= TOTAL_LEVELS
+        savedMaxProgress >= 1 &&
+        savedMaxProgress <= TOTAL_LEVELS
         ? savedMaxProgress
         : Number.isInteger(savedProgressLevel) &&
-            savedProgressLevel >= 1 &&
-            savedProgressLevel <= TOTAL_LEVELS
+          savedProgressLevel >= 1 &&
+          savedProgressLevel <= TOTAL_LEVELS
           ? savedProgressLevel
           : 1;
-    
+
     setMaxUnlockedLevel(restoredMaxLevel);
 
     if (savedStars) {
@@ -854,18 +854,17 @@ export default function TablePage() {
                       ? { scale: [1, 1.05, 1] }
                       : {}
                   }
-                  className={`flex min-h-[44px] items-center justify-center rounded-2xl border-2 px-2 text-center text-sm font-black transition-all sm:min-h-[58px] sm:px-3 sm:text-base ${
-                    found
+                  className={`flex min-h-[44px] items-center justify-center rounded-2xl border-2 px-2 text-center text-sm font-black transition-all sm:min-h-[58px] sm:px-3 sm:text-base ${found
                       ? "border-emerald-200 bg-emerald-50 text-emerald-600"
                       : "border-slate-100 bg-slate-50 text-slate-300"
-                  }`}
+                    }`}
                 >
                   {found
                     ? word
                     : word
-                        .split("")
-                        .map(() => "•")
-                        .join(" ")}
+                      .split("")
+                      .map(() => "•")
+                      .join(" ")}
                 </motion.div>
               );
             })}
@@ -892,14 +891,15 @@ export default function TablePage() {
             {message && (
               <motion.div
                 initial={{ opacity: 0, y: 5 }}
-                animate={{ opacity: 1, y: 0 }}
-                className={`rounded-full px-3 py-1.5 text-[11px] font-bold sm:px-4 sm:py-2 sm:text-xs ${
-                  message.includes("درست") ||
-                  message.includes("جایزه") ||
-                  message.includes("روشن")
-                    ? "bg-emerald-50 text-emerald-600"
-                    : "bg-red-50 text-red-500"
-                }`}
+                animate={{ opacity: 1, y: [0, 0, 0], x: [0, -4, 4, -3, 3, 0] }}
+                className={`rounded-full px-3 py-1.5 text-[11px] font-bold sm:px-4 sm:py-2 sm:text-xs ${message.includes("قبلاً")
+                    ? "bg-amber-50 text-amber-700"
+                    : message.includes("درست") ||
+                      message.includes("جایزه") ||
+                      message.includes("روشن")
+                      ? "bg-emerald-50 text-emerald-600"
+                      : "bg-red-50 text-red-500"
+                  }`}
               >
                 {message}
               </motion.div>
@@ -936,11 +936,10 @@ export default function TablePage() {
                         originalIndex
                       )
                     }
-                    className={`flex h-[52px] w-[52px] items-center justify-center rounded-full border-[4px] text-xl font-black text-white shadow-md transition-all sm:h-[72px] sm:w-[72px] sm:border-[5px] sm:text-3xl ${
-                      selected
+                    className={`flex h-[52px] w-[52px] items-center justify-center rounded-full border-[4px] text-xl font-black text-white shadow-md transition-all sm:h-[72px] sm:w-[72px] sm:border-[5px] sm:text-3xl ${selected
                         ? "border-emerald-300 bg-gradient-to-br from-emerald-400 to-teal-500"
                         : "border-indigo-100 bg-gradient-to-br from-indigo-500 to-purple-500"
-                    }`}
+                      }`}
                   >
                     {letter}
                   </motion.button>
@@ -1004,12 +1003,13 @@ export default function TablePage() {
               ref={coinJarRef}
               className="flex h-11 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-2xl bg-white px-2 shadow-lg ring-1 ring-slate-200 sm:h-12 sm:gap-2 sm:px-3"
             >
-              <span className="text-lg sm:text-xl">🏺</span>
+              <img
+               src="/pottery-svgrepo-com.svg"
+                alt="سکه"
+                className="h-9 w-9 object-contain sm:h-10 sm:w-10"
+              />
               <div className="min-w-0 text-center leading-none">
-                <p className="text-[9px] font-bold text-slate-400 sm:text-[10px]">
-                  کوزه
-                </p>
-                <p className="mt-1 text-xs font-black text-yellow-500 sm:text-sm">
+                <p className="text-xs font-black text-yellow-500 sm:text-sm">
                   {coins} سکه
                 </p>
               </div>
@@ -1039,19 +1039,19 @@ export default function TablePage() {
           LEVEL MAP MODAL
       ===================================================== */}
 
-{showLevelMap && (
-  <div
-    dir="rtl"
-    className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/45 px-3 py-4 backdrop-blur-[4px]"
-  >
-    <motion.div
-      initial={{ opacity: 0, scale: 0.95, y: 18 }}
-      animate={{ opacity: 1, scale: 1, y: 0 }}
-      transition={{
-        duration: 0.35,
-        ease: [0.22, 1, 0.36, 1],
-      }}
-      className="
+      {showLevelMap && (
+        <div
+          dir="rtl"
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/45 px-3 py-4 backdrop-blur-[4px]"
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 18 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{
+              duration: 0.35,
+              ease: [0.22, 1, 0.36, 1],
+            }}
+            className="
         relative
         flex
         max-h-[88vh]
@@ -1065,16 +1065,16 @@ export default function TablePage() {
         bg-[#f7faf6]
         shadow-[0_30px_90px_rgba(15,23,42,0.30)]
       "
-    >
-      {/* =================================================
+          >
+            {/* =================================================
           HEADER
       ================================================== */}
 
-      <div className="relative z-20 border-b border-slate-200/70 bg-white/95 px-5 py-4 sm:px-7">
-        <button
-          type="button"
-          onClick={() => setShowLevelMap(false)}
-          className="
+            <div className="relative z-20 border-b border-slate-200/70 bg-white/95 px-5 py-4 sm:px-7">
+              <button
+                type="button"
+                onClick={() => setShowLevelMap(false)}
+                className="
             absolute
             left-4
             top-4
@@ -1094,14 +1094,14 @@ export default function TablePage() {
             hover:scale-105
             hover:bg-slate-100
           "
-          aria-label="بستن"
-        >
-          ×
-        </button>
+                aria-label="بستن"
+              >
+                ×
+              </button>
 
-        <div className="text-center">
-          <div
-            className="
+              <div className="text-center">
+                <div
+                  className="
               mx-auto
               mb-2.5
               flex
@@ -1118,183 +1118,183 @@ export default function TablePage() {
               shadow-lg
               shadow-indigo-100
             "
-          >
-            🗺️
-          </div>
+                >
+                  🗺️
+                </div>
 
-          <p className="text-[10px] font-black tracking-wide text-indigo-500">
-            مسیر پیشرفت
-          </p>
+                <p className="text-[10px] font-black tracking-wide text-indigo-500">
+                  مسیر پیشرفت
+                </p>
 
-          <h2 className="mt-0.5 text-xl font-black text-slate-800 sm:text-2xl">
-            سفر کَلَمَک
-          </h2>
+                <h2 className="mt-0.5 text-xl font-black text-slate-800 sm:text-2xl">
+                  سفر کَلَمَک
+                </h2>
 
-          <div className="mt-2.5 flex items-center justify-center gap-2">
-            <div className="rounded-full bg-indigo-50 px-3 py-1 text-[10px] font-black text-indigo-600 sm:text-xs">
-              مرحله {maxUnlockedLevel} از {TOTAL_LEVELS}
+                <div className="mt-2.5 flex items-center justify-center gap-2">
+                  <div className="rounded-full bg-indigo-50 px-3 py-1 text-[10px] font-black text-indigo-600 sm:text-xs">
+                    مرحله {maxUnlockedLevel} از {TOTAL_LEVELS}
+                  </div>
+
+                  <div className="rounded-full bg-amber-50 px-3 py-1 text-[10px] font-black text-amber-500 sm:text-xs">
+                    ⭐{" "}
+                    {Object.values(levelStars).reduce(
+                      (sum, value) => sum + value,
+                      0
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
 
-            <div className="rounded-full bg-amber-50 px-3 py-1 text-[10px] font-black text-amber-500 sm:text-xs">
-              ⭐{" "}
-              {Object.values(levelStars).reduce(
-                (sum, value) => sum + value,
-                0
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* =================================================
+            {/* =================================================
           MAP AREA
       ================================================== */}
 
-      <div className="relative flex-1 overflow-y-auto px-3 py-5 sm:px-5 sm:py-6">
-        {/* BACKGROUND DECOR */}
-        <div className="pointer-events-none absolute inset-0 overflow-hidden">
-          <div className="absolute -right-20 top-10 h-36 w-36 rounded-full bg-emerald-100/60 blur-3xl" />
-          <div className="absolute -left-20 bottom-10 h-40 w-40 rounded-full bg-indigo-100/60 blur-3xl" />
-          <div className="absolute right-[18%] top-[25%] h-16 w-16 rounded-full bg-amber-100/40 blur-2xl" />
-          <div className="absolute left-[20%] top-[60%] h-20 w-20 rounded-full bg-purple-100/30 blur-2xl" />
+            <div className="relative flex-1 overflow-y-auto px-3 py-5 sm:px-5 sm:py-6">
+              {/* BACKGROUND DECOR */}
+              <div className="pointer-events-none absolute inset-0 overflow-hidden">
+                <div className="absolute -right-20 top-10 h-36 w-36 rounded-full bg-emerald-100/60 blur-3xl" />
+                <div className="absolute -left-20 bottom-10 h-40 w-40 rounded-full bg-indigo-100/60 blur-3xl" />
+                <div className="absolute right-[18%] top-[25%] h-16 w-16 rounded-full bg-amber-100/40 blur-2xl" />
+                <div className="absolute left-[20%] top-[60%] h-20 w-20 rounded-full bg-purple-100/30 blur-2xl" />
 
-          <div className="absolute right-3 top-3 text-xl opacity-35">
-            🌿
-          </div>
+                <div className="absolute right-3 top-3 text-xl opacity-35">
+                  🌿
+                </div>
 
-          <div className="absolute left-4 top-[28%] text-xl opacity-30">
-            🍃
-          </div>
+                <div className="absolute left-4 top-[28%] text-xl opacity-30">
+                  🍃
+                </div>
 
-          <div className="absolute right-6 bottom-[18%] text-xl opacity-30">
-            🌱
-          </div>
+                <div className="absolute right-6 bottom-[18%] text-xl opacity-30">
+                  🌱
+                </div>
 
-          <div className="absolute left-7 bottom-5 text-xl opacity-25">
-            🍀
-          </div>
-        </div>
+                <div className="absolute left-7 bottom-5 text-xl opacity-25">
+                  🍀
+                </div>
+              </div>
 
-        {/*
+              {/*
           6 ستون:
           هر ردیف جهتش عوض می‌شود و مسیر حالت مارپیچی پیدا می‌کند.
         */}
-        {(() => {
-          const columns = 6;
-          const rows = Math.ceil(mapLevels.length / columns);
+              {(() => {
+                const columns = 6;
+                const rows = Math.ceil(mapLevels.length / columns);
 
-          const points = mapLevels.map((_, index) => {
-            const row = Math.floor(index / columns);
-            const position = index % columns;
+                const points = mapLevels.map((_, index) => {
+                  const row = Math.floor(index / columns);
+                  const position = index % columns;
 
-            const column =
-              row % 2 === 0
-                ? position
-                : columns - 1 - position;
+                  const column =
+                    row % 2 === 0
+                      ? position
+                      : columns - 1 - position;
 
-            const x = ((column + 0.5) / columns) * 100;
-            const y = ((row + 0.5) / rows) * 100;
+                  const x = ((column + 0.5) / columns) * 100;
+                  const y = ((row + 0.5) / rows) * 100;
 
-            return { x, y };
-          });
+                  return { x, y };
+                });
 
-          const pathData = points
-            .map((point, index) => {
-              if (index === 0) {
-                return `M ${point.x} ${point.y}`;
-              }
+                const pathData = points
+                  .map((point, index) => {
+                    if (index === 0) {
+                      return `M ${point.x} ${point.y}`;
+                    }
 
-              const previous = points[index - 1];
+                    const previous = points[index - 1];
 
-              const controlX = (previous.x + point.x) / 2;
-              const controlY = (previous.y + point.y) / 2;
+                    const controlX = (previous.x + point.x) / 2;
+                    const controlY = (previous.y + point.y) / 2;
 
-              return `Q ${controlX} ${previous.y}, ${point.x} ${point.y}`;
-            })
-            .join(" ");
+                    return `Q ${controlX} ${previous.y}, ${point.x} ${point.y}`;
+                  })
+                  .join(" ");
 
-          return (
-            <div className="relative mx-auto w-full max-w-[610px]">
-              {/* PATH */}
-              <svg
-                viewBox="0 0 100 100"
-                preserveAspectRatio="none"
-                className="pointer-events-none absolute inset-0 z-0 h-full w-full"
-              >
-                <defs>
-                  <linearGradient
-                    id="levelPathGradient"
-                    x1="0%"
-                    y1="0%"
-                    x2="100%"
-                    y2="100%"
-                  >
-                    <stop offset="0%" stopColor="#818cf8" />
-                    <stop offset="45%" stopColor="#a78bfa" />
-                    <stop offset="100%" stopColor="#34d399" />
-                  </linearGradient>
-                </defs>
-
-                <path
-                  d={pathData}
-                  fill="none"
-                  stroke="rgba(255,255,255,0.95)"
-                  strokeWidth="7"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-
-                <path
-                  d={pathData}
-                  fill="none"
-                  stroke="url(#levelPathGradient)"
-                  strokeWidth="2.2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeDasharray="1.5 1"
-                />
-              </svg>
-
-              {/* LEVEL GRID */}
-              <div
-                className="relative z-10 grid"
-                style={{
-                  gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
-                  gridAutoRows: "76px",
-                }}
-              >
-                {mapLevels.map((levelNumber, index) => {
-                  const unlocked = levelNumber <= maxUnlockedLevel;
-                  const completed = Boolean(levelStars[levelNumber]);
-                  const stars = levelStars[levelNumber] ?? 0;
-                  const active = levelNumber === currentLevel;
-
-                  return (
-                    <motion.div
-                      key={levelNumber}
-                      initial={{
-                        opacity: 0,
-                        scale: 0.8,
-                        y: 10,
-                      }}
-                      animate={{
-                        opacity: 1,
-                        scale: 1,
-                        y: 0,
-                      }}
-                      transition={{
-                        delay: Math.min(index * 0.025, 0.4),
-                        duration: 0.35,
-                        ease: [0.22, 1, 0.36, 1],
-                      }}
-                      className="relative flex items-center justify-center"
+                return (
+                  <div className="relative mx-auto w-full max-w-[610px]">
+                    {/* PATH */}
+                    <svg
+                      viewBox="0 0 100 100"
+                      preserveAspectRatio="none"
+                      className="pointer-events-none absolute inset-0 z-0 h-full w-full"
                     >
-                      {/* LEVEL NODE */}
-                      <button
-                        type="button"
-                        disabled={!unlocked}
-                        onClick={() => selectLevel(levelNumber)}
-                        className={`
+                      <defs>
+                        <linearGradient
+                          id="levelPathGradient"
+                          x1="0%"
+                          y1="0%"
+                          x2="100%"
+                          y2="100%"
+                        >
+                          <stop offset="0%" stopColor="#818cf8" />
+                          <stop offset="45%" stopColor="#a78bfa" />
+                          <stop offset="100%" stopColor="#34d399" />
+                        </linearGradient>
+                      </defs>
+
+                      <path
+                        d={pathData}
+                        fill="none"
+                        stroke="rgba(255,255,255,0.95)"
+                        strokeWidth="7"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+
+                      <path
+                        d={pathData}
+                        fill="none"
+                        stroke="url(#levelPathGradient)"
+                        strokeWidth="2.2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeDasharray="1.5 1"
+                      />
+                    </svg>
+
+                    {/* LEVEL GRID */}
+                    <div
+                      className="relative z-10 grid"
+                      style={{
+                        gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
+                        gridAutoRows: "76px",
+                      }}
+                    >
+                      {mapLevels.map((levelNumber, index) => {
+                        const unlocked = levelNumber <= maxUnlockedLevel;
+                        const completed = Boolean(levelStars[levelNumber]);
+                        const stars = levelStars[levelNumber] ?? 0;
+                        const active = levelNumber === currentLevel;
+
+                        return (
+                          <motion.div
+                            key={levelNumber}
+                            initial={{
+                              opacity: 0,
+                              scale: 0.8,
+                              y: 10,
+                            }}
+                            animate={{
+                              opacity: 1,
+                              scale: 1,
+                              y: 0,
+                            }}
+                            transition={{
+                              delay: Math.min(index * 0.025, 0.4),
+                              duration: 0.35,
+                              ease: [0.22, 1, 0.36, 1],
+                            }}
+                            className="relative flex items-center justify-center"
+                          >
+                            {/* LEVEL NODE */}
+                            <button
+                              type="button"
+                              disabled={!unlocked}
+                              onClick={() => selectLevel(levelNumber)}
+                              className={`
                           group
                           relative
                           flex
@@ -1311,9 +1311,8 @@ export default function TablePage() {
                           sm:h-[60px]
                           sm:w-[60px]
 
-                          ${
-                            active
-                              ? `
+                          ${active
+                                  ? `
                                 border-indigo-200
                                 bg-gradient-to-br
                                 from-indigo-500
@@ -1324,8 +1323,8 @@ export default function TablePage() {
                                 ring-4
                                 ring-indigo-100/70
                               `
-                              : completed
-                                ? `
+                                  : completed
+                                    ? `
                                   border-emerald-100
                                   bg-gradient-to-br
                                   from-emerald-400
@@ -1333,8 +1332,8 @@ export default function TablePage() {
                                   text-white
                                   shadow-emerald-100
                                 `
-                                : unlocked
-                                  ? `
+                                    : unlocked
+                                      ? `
                                     border-white
                                     bg-white
                                     text-slate-700
@@ -1342,18 +1341,18 @@ export default function TablePage() {
                                     hover:-translate-y-1
                                     hover:scale-105
                                   `
-                                  : `
+                                      : `
                                     border-slate-200
                                     bg-slate-100
                                     text-slate-300
                                   `
-                          }
+                                }
                         `}
-                      >
-                        {/* TOP MINI BADGE */}
-                        {completed && (
-                          <span
-                            className="
+                            >
+                              {/* TOP MINI BADGE */}
+                              {completed && (
+                                <span
+                                  className="
                               absolute
                               -top-2
                               left-1/2
@@ -1368,48 +1367,48 @@ export default function TablePage() {
                               leading-none
                               shadow-sm
                             "
-                          >
-                            {"⭐".repeat(stars)}
-                          </span>
-                        )}
+                                >
+                                  {"⭐".repeat(stars)}
+                                </span>
+                              )}
 
-                        {/* MAIN CONTENT */}
-                        {unlocked ? (
-                          <span className="text-lg sm:text-xl">
-                            {levelNumber}
-                          </span>
-                        ) : (
-                          <span className="text-lg opacity-80">
-                            🔒
-                          </span>
-                        )}
+                              {/* MAIN CONTENT */}
+                              {unlocked ? (
+                                <span className="text-lg sm:text-xl">
+                                  {levelNumber}
+                                </span>
+                              ) : (
+                                <span className="text-lg opacity-80">
+                                  🔒
+                                </span>
+                              )}
 
-                        {/* ACTIVE GLOW */}
-                        {active && (
-                          <motion.span
-                            animate={{
-                              scale: [1, 1.15, 1],
-                              opacity: [0.35, 0.1, 0.35],
-                            }}
-                            transition={{
-                              duration: 1.8,
-                              repeat: Infinity,
-                              ease: "easeInOut",
-                            }}
-                            className="
+                              {/* ACTIVE GLOW */}
+                              {active && (
+                                <motion.span
+                                  animate={{
+                                    scale: [1, 1.15, 1],
+                                    opacity: [0.35, 0.1, 0.35],
+                                  }}
+                                  transition={{
+                                    duration: 1.8,
+                                    repeat: Infinity,
+                                    ease: "easeInOut",
+                                  }}
+                                  className="
                               absolute
                               -inset-2
                               -z-10
                               rounded-full
                               bg-indigo-400
                             "
-                          />
-                        )}
+                                />
+                              )}
 
-                        {/* COMPLETED DOT */}
-                        {completed && !active && (
-                          <span
-                            className="
+                              {/* COMPLETED DOT */}
+                              {completed && !active && (
+                                <span
+                                  className="
                               absolute
                               -bottom-1
                               -right-1
@@ -1425,27 +1424,27 @@ export default function TablePage() {
                               ring-1
                               ring-emerald-100
                             "
-                          >
-                            ✓
-                          </span>
-                        )}
-                      </button>
+                                >
+                                  ✓
+                                </span>
+                              )}
+                            </button>
 
-                      {/* ACTIVE LABEL */}
-                      {active && (
-                        <motion.div
-                          initial={{
-                            opacity: 0,
-                            y: 4,
-                          }}
-                          animate={{
-                            opacity: 1,
-                            y: 0,
-                          }}
-                          transition={{
-                            duration: 0.25,
-                          }}
-                          className="
+                            {/* ACTIVE LABEL */}
+                            {active && (
+                              <motion.div
+                                initial={{
+                                  opacity: 0,
+                                  y: 4,
+                                }}
+                                animate={{
+                                  opacity: 1,
+                                  y: 0,
+                                }}
+                                transition={{
+                                  duration: 0.25,
+                                }}
+                                className="
                             absolute
                             -bottom-1
                             left-1/2
@@ -1462,42 +1461,42 @@ export default function TablePage() {
                             shadow-md
                             sm:text-[9px]
                           "
-                        >
-                          اینجایی
-                        </motion.div>
-                      )}
-                    </motion.div>
-                  );
-                })}
-              </div>
+                              >
+                                اینجایی
+                              </motion.div>
+                            )}
+                          </motion.div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
-          );
-        })()}
-      </div>
 
-      {/* =================================================
+            {/* =================================================
           FOOTER
       ================================================== */}
 
-      <div className="relative z-20 border-t border-slate-200/70 bg-white/95 px-4 py-3.5 sm:px-5">
-        <div className="flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-[10px] font-black text-slate-700 sm:text-xs">
-              هر مرحله، یک قدم جلوتر
-            </p>
+            <div className="relative z-20 border-t border-slate-200/70 bg-white/95 px-4 py-3.5 sm:px-5">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[10px] font-black text-slate-700 sm:text-xs">
+                    هر مرحله، یک قدم جلوتر
+                  </p>
 
-            <p className="mt-0.5 text-[9px] font-medium text-slate-400 sm:text-[10px]">
-              ⭐⭐⭐ با پیدا کردن ۵ کلمه جایزه یا بیشتر
-            </p>
-          </div>
+                  <p className="mt-0.5 text-[9px] font-medium text-slate-400 sm:text-[10px]">
+                    ⭐⭐⭐ با پیدا کردن ۵ کلمه جایزه یا بیشتر
+                  </p>
+                </div>
 
-          <button
-            type="button"
-            onClick={() => {
-              setShowLevelMap(false);
-              setCurrentLevel(maxUnlockedLevel);
-            }}
-            className="
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowLevelMap(false);
+                    setCurrentLevel(maxUnlockedLevel);
+                  }}
+                  className="
               shrink-0
               rounded-2xl
               bg-gradient-to-r
@@ -1517,14 +1516,14 @@ export default function TablePage() {
               sm:px-5
               sm:text-xs
             "
-          >
-            ادامه بازی →
-          </button>
+                >
+                  ادامه بازی →
+                </button>
+              </div>
+            </div>
+          </motion.div>
         </div>
-      </div>
-    </motion.div>
-  </div>
-)}
+      )}
 
       {/* =====================================================
           TUTORIAL
@@ -1643,11 +1642,10 @@ export default function TablePage() {
               {[0, 1, 2, 3].map((step) => (
                 <span
                   key={step}
-                  className={`h-2 rounded-full transition-all ${
-                    step === tutorialStep
+                  className={`h-2 rounded-full transition-all ${step === tutorialStep
                       ? "w-7 bg-indigo-500"
                       : "w-2 bg-slate-200"
-                  }`}
+                    }`}
                 />
               ))}
             </div>

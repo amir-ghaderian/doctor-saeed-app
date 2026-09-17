@@ -606,7 +606,7 @@ export default function ComingSoonPage() {
 
             <div>
               <div className="text-sm font-bold text-slate-700 sm:text-base">
-                تَکَل
+                تَکل
               </div>
 
               <div className="hidden text-[11px] text-slate-400 sm:block">
@@ -735,7 +735,7 @@ export default function ComingSoonPage() {
                 >
                   <img
                     src="/pic/drHead.png"
-                    alt="تکل"
+                    alt="تَکل"
                     className="
                       h-full
                       w-full
@@ -867,7 +867,7 @@ export default function ComingSoonPage() {
             >
               یک اتفاق بزرگ در راه است.
               <br />
-              تیم تکل در حال آماده‌سازی چیزی است که به‌زودی
+              تیم تَکل در حال آماده‌سازی چیزی است که به‌زودی
               خبرهای خوبش را با شما به اشتراک می‌گذارد.
             </p>
 
@@ -923,7 +923,7 @@ export default function ComingSoonPage() {
               "
             >
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-              <span>تکل؛ ذهن قوی‌تر، عملکرد بهتر</span>
+              <span>تَکل؛ ذهن قوی‌تر، عملکرد بهتر</span>
             </div>
           </motion.div>
         </div>
