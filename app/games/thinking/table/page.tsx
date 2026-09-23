@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import {
   getTableLevel,
@@ -18,6 +18,123 @@ const STARS_KEY = "word-game-level-stars";
 const BONUS_WORDS_KEY = "word-game-bonus-words";
 const TUTORIAL_KEY = "word-game-tutorial-seen";
 const GAME_MIGRATION_KEY = "word-game-map-migration-v1";
+const LEVEL_REWARDS_KEY = "word-game-level-rewards-v1";
+
+// جایزه سکه هر مرحله بر اساس بازه‌ی مراحل (به‌جای زنجیره if تکراری)
+const LEVEL_REWARD_TIERS: { max: number; reward: number }[] = [
+  { max: 10, reward: 3 },
+  { max: 20, reward: 5 },
+  { max: 30, reward: 6 },
+  { max: 40, reward: 8 },
+  { max: 50, reward: 10 },
+];
+
+function getLevelReward(levelNumber: number): number {
+  const tier = LEVEL_REWARD_TIERS.find((t) => levelNumber <= t.max);
+  return tier ? tier.reward : 0;
+}
+
+/* =============================================================
+   localStorage helpers — یک‌جا و ایمن، به‌جای try/catch پراکنده
+============================================================= */
+
+function readNumber(key: string, fallback: number | null = null) {
+  if (typeof window === "undefined") return fallback;
+  const raw = localStorage.getItem(key);
+  if (raw === null) return fallback;
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : fallback;
+}
+
+function readJSON<T>(key: string, fallback: T): T {
+  if (typeof window === "undefined") return fallback;
+  const raw = localStorage.getItem(key);
+  if (!raw) return fallback;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return fallback;
+  }
+}
+
+function writeLocal(key: string, value: unknown) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(
+    key,
+    typeof value === "string" ? value : JSON.stringify(value)
+  );
+}
+
+/* =============================================================
+   پس‌زمینه‌ی حروف — خیلی کم‌رنگ، هماهنگ با موضوع بازی کلمات
+   (تصادفی اما با seed ثابت تا بین سرور و کلاینت یکسان بماند)
+============================================================= */
+
+const PERSIAN_LETTERS = [
+  "ا", "ب", "پ", "ت", "ث", "ج", "چ", "ح", "خ", "د",
+  "ذ", "ر", "ز", "ژ", "س", "ش", "ص", "ض", "ط", "ظ",
+  "ع", "غ", "ف", "ق", "ک", "گ", "ل", "م", "ن", "و", "ه", "ی",
+];
+
+function createSeededRandom(seed: number) {
+  let a = seed;
+  return () => {
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+type BackgroundLetter = {
+  char: string;
+  top: number;
+  left: number;
+  size: number;
+  rotate: number;
+  opacity: number;
+};
+
+const BACKGROUND_LETTERS: BackgroundLetter[] = (() => {
+  const rand = createSeededRandom(1404);
+  const count = 46;
+
+  return Array.from({ length: count }, () => ({
+    char: PERSIAN_LETTERS[Math.floor(rand() * PERSIAN_LETTERS.length)],
+    top: rand() * 100,
+    left: rand() * 100,
+    size: 34 + rand() * 74,
+    rotate: rand() * 56 - 28,
+    opacity: 0.025 + rand() * 0.035,
+  }));
+})();
+
+function LetterBackdrop() {
+  return (
+    <div
+      aria-hidden="true"
+      className="pointer-events-none fixed inset-0 z-0 select-none overflow-hidden"
+    >
+      {BACKGROUND_LETTERS.map((item, index) => (
+        <span
+          key={index}
+          className="absolute font-black text-indigo-950"
+          style={{
+            top: `${item.top}%`,
+            left: `${item.left}%`,
+            fontSize: `${item.size}px`,
+            transform: `rotate(${item.rotate}deg)`,
+            opacity: item.opacity,
+            lineHeight: 1,
+          }}
+        >
+          {item.char}
+        </span>
+      ))}
+    </div>
+  );
+}
 
 type DisplayLetter = {
   letter: string;
@@ -43,6 +160,7 @@ export default function TablePage() {
   const [selectedLetterIndexes, setSelectedLetterIndexes] = useState<number[]>(
     []
   );
+  const [helpedPositions, setHelpedPositions] = useState<number[]>([]);
   const [displayLetters, setDisplayLetters] = useState<DisplayLetter[]>([]);
   const [foundWords, setFoundWords] = useState<string[]>([]);
   const [foundBonusWordsByLevel, setFoundBonusWordsByLevel] = useState<
@@ -63,12 +181,6 @@ export default function TablePage() {
   const findButtonRef = useRef<HTMLButtonElement>(null);
   const coinJarRef = useRef<HTMLDivElement>(null);
   const tutorialCardRef = useRef<HTMLDivElement>(null);
-
-  const helpProgressRef = useRef({
-    level: 1,
-    word: "",
-    count: 0,
-  });
 
   const bonusRewardedRef = useRef<Record<number, Set<string>>>({});
 
@@ -93,117 +205,107 @@ export default function TablePage() {
       localStorage.setItem(GAME_MIGRATION_KEY, "1");
     }
 
-    const savedCoins = localStorage.getItem(COINS_KEY);
-    const savedLevel = localStorage.getItem(LEVEL_KEY);
-    const savedMaxLevel = localStorage.getItem(MAX_LEVEL_KEY);
-    const savedStars = localStorage.getItem(STARS_KEY);
-    const savedBonusWords = localStorage.getItem(BONUS_WORDS_KEY);
-    const tutorialSeen = localStorage.getItem(TUTORIAL_KEY);
-
-    if (savedCoins) {
-      const value = Number(savedCoins);
-      if (Number.isFinite(value) && value >= 0) setCoins(value);
+    const savedCoins = readNumber(COINS_KEY);
+    if (savedCoins !== null && savedCoins >= 0) {
+      setCoins(savedCoins);
     }
 
-    if (savedLevel) {
-      const value = Number(savedLevel);
-      if (Number.isInteger(value) && value >= 1 && value <= TOTAL_LEVELS) {
-        setCurrentLevel(value);
-      }
+    const savedLevel = readNumber(LEVEL_KEY);
+    if (
+      savedLevel !== null &&
+      Number.isInteger(savedLevel) &&
+      savedLevel >= 1 &&
+      savedLevel <= TOTAL_LEVELS
+    ) {
+      setCurrentLevel(savedLevel);
     }
 
-    const savedProgressLevel = Number(savedLevel);
-    const savedMaxProgress = Number(savedMaxLevel);
-
+    const savedMaxLevel = readNumber(MAX_LEVEL_KEY);
     const restoredMaxLevel =
-      Number.isInteger(savedMaxProgress) &&
-        savedMaxProgress >= 1 &&
-        savedMaxProgress <= TOTAL_LEVELS
-        ? savedMaxProgress
-        : Number.isInteger(savedProgressLevel) &&
-          savedProgressLevel >= 1 &&
-          savedProgressLevel <= TOTAL_LEVELS
-          ? savedProgressLevel
+      savedMaxLevel !== null &&
+      Number.isInteger(savedMaxLevel) &&
+      savedMaxLevel >= 1 &&
+      savedMaxLevel <= TOTAL_LEVELS
+        ? savedMaxLevel
+        : savedLevel !== null &&
+          Number.isInteger(savedLevel) &&
+          savedLevel >= 1 &&
+          savedLevel <= TOTAL_LEVELS
+          ? savedLevel
           : 1;
 
     setMaxUnlockedLevel(restoredMaxLevel);
 
-    if (savedStars) {
-      try {
-        const parsed = JSON.parse(savedStars);
+    const savedStars = readJSON<Record<string, unknown>>(STARS_KEY, {});
+    if (savedStars && typeof savedStars === "object" && !Array.isArray(savedStars)) {
+      const cleaned: Record<number, number> = {};
 
-        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-          const cleaned: Record<number, number> = {};
-
-          Object.entries(parsed).forEach(([key, value]) => {
-            const levelNumber = Number(key);
-            const stars = Number(value);
-
-            if (
-              Number.isInteger(levelNumber) &&
-              Number.isInteger(stars) &&
-              levelNumber >= 1 &&
-              levelNumber <= TOTAL_LEVELS &&
-              stars >= 1 &&
-              stars <= 3
-            ) {
-              cleaned[levelNumber] = stars;
-            }
-          });
-
-          setLevelStars(cleaned);
-        }
-      } catch {
-        // داده خراب بود؛ بازی ادامه پیدا می‌کند.
-      }
-    }
-
-    if (savedBonusWords) {
-      try {
-        const parsed = JSON.parse(savedBonusWords);
+      Object.entries(savedStars).forEach(([key, value]) => {
+        const levelNumber = Number(key);
+        const stars = Number(value);
 
         if (
-          parsed &&
-          typeof parsed === "object" &&
-          !Array.isArray(parsed)
+          Number.isInteger(levelNumber) &&
+          Number.isInteger(stars) &&
+          levelNumber >= 1 &&
+          levelNumber <= TOTAL_LEVELS &&
+          stars >= 1 &&
+          stars <= 3
         ) {
-          const cleaned: Record<number, string[]> = {};
-
-          Object.entries(parsed).forEach(([key, words]) => {
-            const levelNumber = Number(key);
-
-            if (Number.isInteger(levelNumber) && Array.isArray(words)) {
-              cleaned[levelNumber] = Array.from(
-                new Set(
-                  words
-                    .filter(
-                      (word): word is string => typeof word === "string"
-                    )
-                    .map(normalizeWord)
-                    .filter(Boolean)
-                )
-              );
-            }
-          });
-
-          setFoundBonusWordsByLevel(cleaned);
-
-          const restored: Record<number, Set<string>> = {};
-
-          Object.entries(cleaned).forEach(([key, words]) => {
-            restored[Number(key)] = new Set(words);
-          });
-
-          bonusRewardedRef.current = restored;
+          cleaned[levelNumber] = stars;
         }
-      } catch {
-        // داده خراب بود؛ بازی بدون آن ادامه پیدا می‌کند.
-      }
+      });
+
+      setLevelStars(cleaned);
     }
+
+    const savedBonusWords = readJSON<Record<string, unknown>>(
+      BONUS_WORDS_KEY,
+      {}
+    );
+    if (
+      savedBonusWords &&
+      typeof savedBonusWords === "object" &&
+      !Array.isArray(savedBonusWords)
+    ) {
+      const cleaned: Record<number, string[]> = {};
+
+      Object.entries(savedBonusWords).forEach(([key, words]) => {
+        const levelNumber = Number(key);
+
+        if (Number.isInteger(levelNumber) && Array.isArray(words)) {
+          cleaned[levelNumber] = Array.from(
+            new Set(
+              words
+                .filter((word): word is string => typeof word === "string")
+                .map(normalizeWord)
+                .filter(Boolean)
+            )
+          );
+        }
+      });
+
+      setFoundBonusWordsByLevel(cleaned);
+
+      const restored: Record<number, Set<string>> = {};
+
+      Object.entries(cleaned).forEach(([key, words]) => {
+        restored[Number(key)] = new Set(words);
+      });
+
+      bonusRewardedRef.current = restored;
+    }
+
+    const tutorialSeen = localStorage.getItem(TUTORIAL_KEY);
 
     if (tutorialSeen) {
       window.setTimeout(() => {
         setShowLevelMap(true);
+      }, 350);
+    } else {
+      window.setTimeout(() => {
+        setTutorialStep(0);
+        setShowTutorial(true);
       }, 350);
     }
 
@@ -215,32 +317,23 @@ export default function TablePage() {
   ========================================================= */
 
   useEffect(() => {
-    if (loaded) localStorage.setItem(COINS_KEY, String(coins));
+    if (loaded) writeLocal(COINS_KEY, String(coins));
   }, [coins, loaded]);
 
   useEffect(() => {
-    if (loaded) localStorage.setItem(LEVEL_KEY, String(currentLevel));
+    if (loaded) writeLocal(LEVEL_KEY, String(currentLevel));
   }, [currentLevel, loaded]);
 
   useEffect(() => {
-    if (loaded) {
-      localStorage.setItem(MAX_LEVEL_KEY, String(maxUnlockedLevel));
-    }
+    if (loaded) writeLocal(MAX_LEVEL_KEY, String(maxUnlockedLevel));
   }, [maxUnlockedLevel, loaded]);
 
   useEffect(() => {
-    if (loaded) {
-      localStorage.setItem(STARS_KEY, JSON.stringify(levelStars));
-    }
+    if (loaded) writeLocal(STARS_KEY, levelStars);
   }, [levelStars, loaded]);
 
   useEffect(() => {
-    if (loaded) {
-      localStorage.setItem(
-        BONUS_WORDS_KEY,
-        JSON.stringify(foundBonusWordsByLevel)
-      );
-    }
+    if (loaded) writeLocal(BONUS_WORDS_KEY, foundBonusWordsByLevel);
   }, [foundBonusWordsByLevel, loaded]);
 
   /* =========================================================
@@ -252,6 +345,7 @@ export default function TablePage() {
 
     setSelectedLetters([]);
     setSelectedLetterIndexes([]);
+    setHelpedPositions([]);
     setFoundWords([]);
     setMessage("");
     setShowWin(false);
@@ -263,11 +357,6 @@ export default function TablePage() {
       }))
     );
 
-    helpProgressRef.current = {
-      level: currentLevel,
-      word: "",
-      count: 0,
-    };
   }, [currentLevel, loaded]);
 
   /* =========================================================
@@ -375,13 +464,18 @@ export default function TablePage() {
     return (
       <main
         dir="rtl"
-        className="flex min-h-screen items-center justify-center bg-[#f5f7fb]"
+        className="relative flex min-h-screen items-center justify-center overflow-hidden bg-gradient-to-b from-indigo-50 via-white to-purple-50"
       >
-        <div className="text-center">
-          <div className="mb-3 text-5xl">🧩</div>
-          <p className="font-bold text-slate-700">
-            در حال آماده‌سازی بازی...
-          </p>
+        <LetterBackdrop />
+        <div className="relative z-10 text-center">
+          <motion.div
+            animate={{ scale: [1, 1.12, 1], rotate: [0, -6, 6, 0] }}
+            transition={{ duration: 1.4, repeat: Infinity }}
+            className="mb-3 text-5xl"
+          >
+            🧩
+          </motion.div>
+          <p className="font-bold text-slate-600">در حال آماده‌سازی بازی...</p>
         </div>
       </main>
     );
@@ -391,32 +485,32 @@ export default function TablePage() {
      GAME ACTIONS
   ========================================================= */
 
-  const handleLetterClick = (
-    letter: string,
-    originalIndex: number
-  ) => {
+  const handleLetterClick = (letter: string, originalIndex: number) => {
     if (selectedLetterIndexes.includes(originalIndex)) return;
 
-    setSelectedLetterIndexes((current) => [
-      ...current,
-      originalIndex,
-    ]);
-
-    setSelectedLetters((current) => [
-      ...current,
-      letter,
-    ]);
-
+    setSelectedLetterIndexes((current) => [...current, originalIndex]);
+    setSelectedLetters((current) => [...current, letter]);
     setMessage("");
   };
 
   const clearWord = () => {
     setSelectedLetters([]);
     setSelectedLetterIndexes([]);
+    setHelpedPositions([]);
     setMessage("");
   };
 
   const removeLastLetter = () => {
+    if (!selectedLetters.length) return;
+
+    const lastPosition = selectedLetters.length - 1;
+    const lastLetterWasHelped = helpedPositions.includes(lastPosition);
+
+    if (lastLetterWasHelped) {
+      setMessage("حرفی که با کمک باز شد قابل حذف نیست؛ برای شروع دوباره «پاک» را بزن.");
+      return;
+    }
+
     setSelectedLetters((current) => current.slice(0, -1));
     setSelectedLetterIndexes((current) => current.slice(0, -1));
     setMessage("");
@@ -429,23 +523,15 @@ export default function TablePage() {
 
     for (let i = shuffled.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
-
-      [shuffled[i], shuffled[j]] = [
-        shuffled[j],
-        shuffled[i],
-      ];
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
     }
 
     const sameOrder = shuffled.every(
-      (item, index) =>
-        item.originalIndex === displayLetters[index].originalIndex
+      (item, index) => item.originalIndex === displayLetters[index].originalIndex
     );
 
     if (sameOrder) {
-      [shuffled[0], shuffled[1]] = [
-        shuffled[1],
-        shuffled[0],
-      ];
+      [shuffled[0], shuffled[1]] = [shuffled[1], shuffled[0]];
     }
 
     setDisplayLetters(shuffled);
@@ -458,17 +544,14 @@ export default function TablePage() {
 
   const useHelp = () => {
     if (coins < 5) {
-      setMessage(
-        "برای استفاده از کمک حداقل ۵ سکه لازم داری 🪙"
-      );
+      setMessage("برای استفاده از کمک حداقل ۵ سکه لازم داری 🪙");
       return;
     }
 
     const remainingWords = level.words.filter(
       (word) =>
         !foundWords.some(
-          (foundWord) =>
-            normalizeWord(foundWord) === normalizeWord(word)
+          (foundWord) => normalizeWord(foundWord) === normalizeWord(word)
         )
     );
 
@@ -479,68 +562,49 @@ export default function TablePage() {
 
     const targetWord = normalizeWord(remainingWords[0]);
 
-    if (
-      helpProgressRef.current.level !== currentLevel ||
-      helpProgressRef.current.word !== targetWord
-    ) {
-      helpProgressRef.current = {
-        level: currentLevel,
-        word: targetWord,
-        count: 0,
-      };
-    }
+    // کمک فقط زمانی ادامه پیدا می‌کند که حروف فعلی، ابتدای همان کلمه باشند.
+    // در این حالت حرف کمک‌شده دقیقاً به جای بعدی کلمه اضافه می‌شود و ثابت می‌ماند.
+    const matchesTargetPrefix = selectedLetters.every(
+      (letter, index) => normalizeWord(letter) === normalizeWord(targetWord[index] ?? "")
+    );
 
-    let nextPosition = helpProgressRef.current.count;
-    let helpIndex = -1;
-    let helpLetter = "";
-
-    const usedIndexes = new Set(selectedLetterIndexes);
-
-    while (nextPosition < targetWord.length) {
-      const targetLetter = targetWord[nextPosition];
-
-      const availableIndex = level.letters.findIndex(
-        (letter, index) =>
-          normalizeWord(letter) === normalizeWord(targetLetter) &&
-          !usedIndexes.has(index)
-      );
-
-      if (availableIndex !== -1) {
-        helpIndex = availableIndex;
-        helpLetter = level.letters[availableIndex];
-        break;
-      }
-
-      nextPosition += 1;
-    }
-
-    if (helpIndex === -1) {
-      setMessage(
-        "اول کلمه فعلی را کامل یا پاک کن، سپس از کمک استفاده کن."
-      );
+    if (!matchesTargetPrefix || selectedLetters.length > targetWord.length) {
+      setMessage("اول حروف اشتباه را پاک کن، سپس از کمک استفاده کن.");
       return;
     }
 
-    helpProgressRef.current = {
-      level: currentLevel,
-      word: targetWord,
-      count: nextPosition + 1,
-    };
+    const nextPosition = selectedLetters.length;
+
+    if (nextPosition >= targetWord.length) {
+      setMessage("کلمه فعلی کامل شده؛ آن را پیدا کن یا پاک کن.");
+      return;
+    }
+
+    const targetLetter = targetWord[nextPosition];
+
+    const helpIndex = level.letters.findIndex(
+      (letter, index) =>
+        normalizeWord(letter) === normalizeWord(targetLetter) &&
+        !selectedLetterIndexes.includes(index)
+    );
+
+    if (helpIndex === -1) {
+      setMessage("حرف لازم برای کمک در این مرحله در دسترس نیست؛ کلمه را پاک کن.");
+      return;
+    }
+
+    const helpLetter = level.letters[helpIndex];
 
     setCoins((current) => current - 5);
 
-    setSelectedLetterIndexes((current) =>
-      current.includes(helpIndex)
-        ? current
-        : [...current, helpIndex]
-    );
+    // حرف کمک‌شده دقیقاً در جای خودش قرار می‌گیرد.
+    setSelectedLetters((current) => [...current, helpLetter]);
+    setSelectedLetterIndexes((current) => [...current, helpIndex]);
 
-    setSelectedLetters((current) => [
-      ...current,
-      helpLetter,
-    ]);
+    // موقعیت این حرف از این لحظه قفل است و دکمه حذف نمی‌تواند آن را بردارد.
+    setHelpedPositions((current) => [...current, nextPosition]);
 
-    setMessage("💡 یک حرف از کلمه روشن شد!");
+    setMessage("💡 یک حرف از کلمه روشن شد و ثابت ماند!");
   };
 
   /* =========================================================
@@ -553,65 +617,57 @@ export default function TablePage() {
     const normalizedCurrentWord = normalizeWord(currentWord);
 
     const mainWord = level.words.find(
-      (word) =>
-        normalizeWord(word) === normalizedCurrentWord
+      (word) => normalizeWord(word) === normalizedCurrentWord
     );
 
     if (mainWord) {
       const alreadyFound = foundWords.some(
-        (word) =>
-          normalizeWord(word) === normalizedCurrentWord
+        (word) => normalizeWord(word) === normalizedCurrentWord
       );
 
       if (alreadyFound) {
         setMessage("این کلمه را قبلاً پیدا کردی.");
         setSelectedLetters([]);
         setSelectedLetterIndexes([]);
+        setHelpedPositions([]);
         return;
       }
 
       const nextFoundCount = foundWords.length + 1;
 
-      setFoundWords((current) => [
-        ...current,
-        mainWord,
-      ]);
+      setFoundWords((current) => [...current, mainWord]);
 
       setSelectedLetters([]);
       setSelectedLetterIndexes([]);
-
-      helpProgressRef.current = {
-        level: currentLevel,
-        word: "",
-        count: 0,
-      };
+      setHelpedPositions([]);
 
       setMessage("آفرین! کلمه درست است 🎉");
 
       if (nextFoundCount === level.words.length) {
         window.setTimeout(() => {
-          const bonusCount =
-            bonusRewardedRef.current[currentLevel]?.size ?? 0;
+          const bonusCount = bonusRewardedRef.current[currentLevel]?.size ?? 0;
 
-          const stars =
-            bonusCount >= 5
-              ? 3
-              : bonusCount >= 1
-                ? 2
-                : 1;
+          const stars = bonusCount >= 5 ? 3 : bonusCount >= 1 ? 2 : 1;
+          const reward = getLevelReward(currentLevel);
+
+          const rewardedLevels = readJSON<Record<number, boolean>>(
+            LEVEL_REWARDS_KEY,
+            {}
+          );
+
+          if (reward > 0 && !rewardedLevels[currentLevel]) {
+            rewardedLevels[currentLevel] = true;
+            writeLocal(LEVEL_REWARDS_KEY, rewardedLevels);
+            setCoins((current) => current + reward);
+          }
 
           setLevelStars((current) => ({
             ...current,
-            [currentLevel]: Math.max(
-              current[currentLevel] ?? 0,
-              stars
-            ),
+            [currentLevel]: Math.max(current[currentLevel] ?? 0, stars),
           }));
 
           if (currentLevel < TOTAL_LEVELS) {
-            setMaxUnlockedLevel((current) =>
-              Math.max(current, currentLevel + 1)
-            );
+            setMaxUnlockedLevel((current) => Math.max(current, currentLevel + 1));
           }
 
           setShowWin(true);
@@ -625,54 +681,40 @@ export default function TablePage() {
        BONUS WORD
     ===================================================== */
 
-    if (
-      isBonusWord(
-        currentLevel,
-        normalizedCurrentWord
-      )
-    ) {
+    if (isBonusWord(currentLevel, normalizedCurrentWord)) {
       const currentBonusSet =
-        bonusRewardedRef.current[currentLevel] ??
-        new Set<string>();
+        bonusRewardedRef.current[currentLevel] ?? new Set<string>();
 
       if (currentBonusSet.has(normalizedCurrentWord)) {
         setSelectedLetters([]);
         setSelectedLetterIndexes([]);
-
-        setMessage(
-          "این کلمه جایزه را قبلاً پیدا کردی."
-        );
-
+        setHelpedPositions([]);
+        setMessage("این کلمه جایزه را قبلاً پیدا کردی.");
         return;
       }
 
       currentBonusSet.add(normalizedCurrentWord);
-
-      bonusRewardedRef.current[currentLevel] =
-        currentBonusSet;
+      bonusRewardedRef.current[currentLevel] = currentBonusSet;
 
       setFoundBonusWordsByLevel((current) => ({
         ...current,
-        [currentLevel]: [
-          ...(current[currentLevel] ?? []),
-          normalizedCurrentWord,
-        ],
+        [currentLevel]: [...(current[currentLevel] ?? []), normalizedCurrentWord],
       }));
 
       setCoins((current) => current + 1);
 
       setSelectedLetters([]);
       setSelectedLetterIndexes([]);
+      setHelpedPositions([]);
 
-      setMessage(
-        "کلمه جایزه پیدا کردی! 🪙 +۱ سکه"
-      );
+      setMessage("کلمه جایزه پیدا کردی! 🪙 +۱ سکه");
 
       return;
     }
 
     setSelectedLetters([]);
     setSelectedLetterIndexes([]);
+    setHelpedPositions([]);
   };
 
   /* =========================================================
@@ -680,11 +722,7 @@ export default function TablePage() {
   ========================================================= */
 
   const selectLevel = (levelNumber: number) => {
-    if (
-      levelNumber < 1 ||
-      levelNumber > maxUnlockedLevel ||
-      levelNumber > TOTAL_LEVELS
-    ) {
+    if (levelNumber < 1 || levelNumber > maxUnlockedLevel || levelNumber > TOTAL_LEVELS) {
       return;
     }
 
@@ -706,9 +744,7 @@ export default function TablePage() {
     setCurrentLevel((current) => current + 1);
   };
 
-  const currentBonusCount =
-    foundBonusWordsByLevel[currentLevel]?.length ?? 0;
-
+  const currentBonusCount = foundBonusWordsByLevel[currentLevel]?.length ?? 0;
   const currentStars = levelStars[currentLevel] ?? 0;
 
   /* =========================================================
@@ -757,10 +793,7 @@ export default function TablePage() {
      LEVEL MAP
   ========================================================= */
 
-  const mapLevels = Array.from(
-    { length: TOTAL_LEVELS },
-    (_, index) => index + 1
-  );
+  const mapLevels = Array.from({ length: TOTAL_LEVELS }, (_, index) => index + 1);
 
   /* =========================================================
      UI
@@ -769,20 +802,15 @@ export default function TablePage() {
   return (
     <main
       dir="rtl"
-      className="relative min-h-[100dvh] overflow-x-hidden overflow-y-auto bg-[#f5f7fb] px-3 py-2 pb-4 text-slate-800 sm:min-h-screen sm:overflow-visible sm:px-6 sm:py-8"
-      style={{
-        backgroundImage: 'url("/pic/bg.jpg")',
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-        backgroundAttachment: "fixed",
-      }}
+      className="relative min-h-[100dvh] overflow-x-hidden overflow-y-auto bg-gradient-to-b from-indigo-50 via-white to-purple-50 px-3 py-2 pb-4 text-slate-800 sm:min-h-screen sm:overflow-visible sm:px-6 sm:py-8"
     >
-      <div
-        className="pointer-events-none fixed inset-0 z-0"
-        style={{
-          backgroundColor: "rgba(241,245,249,0.75)",
-        }}
-      />
+      <LetterBackdrop />
+
+      {/* هاله‌های نرم رنگی برای عمق بیشتر */}
+      <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
+        <div className="absolute -right-24 -top-24 h-72 w-72 rounded-full bg-indigo-200/30 blur-3xl" />
+        <div className="absolute -left-24 bottom-0 h-72 w-72 rounded-full bg-purple-200/30 blur-3xl" />
+      </div>
 
       <div className="relative z-10 mx-auto flex w-full max-w-xl flex-col sm:min-h-[calc(100vh-4rem)]">
         {/* HEADER */}
@@ -792,7 +820,7 @@ export default function TablePage() {
             onClick={() => {
               window.location.href = "/games";
             }}
-            className="flex items-center gap-1 rounded-2xl bg-white px-3 py-2 text-xs font-bold sm:px-4 sm:py-2.5 sm:text-sm text-slate-500 shadow-sm ring-1 ring-slate-200 transition hover:text-slate-800"
+            className="flex items-center gap-1 rounded-2xl bg-white/90 px-3 py-2 text-xs font-bold text-slate-500 shadow-sm ring-1 ring-slate-200 backdrop-blur-sm transition hover:text-slate-800 sm:px-4 sm:py-2.5 sm:text-sm"
           >
             <span>→</span>
             منوی اصلی
@@ -801,31 +829,31 @@ export default function TablePage() {
           <button
             type="button"
             onClick={() => setShowLevelMap(true)}
-            className="flex items-center gap-1.5 rounded-2xl bg-white px-3 py-2 text-xs font-black sm:gap-2 sm:px-4 sm:py-2.5 sm:text-sm text-indigo-600 shadow-sm ring-1 ring-indigo-100 transition hover:-translate-y-0.5 hover:shadow-md"
+            className="flex items-center gap-1.5 rounded-2xl bg-white/90 px-3 py-2 text-xs font-black text-indigo-600 shadow-sm ring-1 ring-indigo-100 backdrop-blur-sm transition hover:-translate-y-0.5 hover:shadow-md sm:gap-2 sm:px-4 sm:py-2.5 sm:text-sm"
           >
             <span>🗺️</span>
             مراحل
           </button>
 
-          <div className="flex items-center gap-1.5 rounded-2xl bg-white px-3 py-2 shadow-sm ring-1 ring-slate-200 sm:gap-2 sm:px-4 sm:py-2.5">
+          <div className="flex items-center gap-1.5 rounded-2xl bg-white/90 px-3 py-2 shadow-sm ring-1 ring-slate-200 backdrop-blur-sm sm:gap-2 sm:px-4 sm:py-2.5">
             <span className="text-lg">🪙</span>
-            <span className="font-black text-slate-700">
-              {coins}
-            </span>
+            <span className="font-black text-slate-700">{coins}</span>
           </div>
         </div>
 
         {/* TITLE */}
         <div className="mb-2 text-center sm:mb-5">
-          <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-[18px] bg-gradient-to-br from-indigo-500 to-purple-500 text-2xl shadow-lg shadow-indigo-200 sm:mb-3 sm:h-16 sm:w-16 sm:rounded-[22px] sm:text-3xl">
+          <motion.div
+            animate={{ y: [0, -4, 0] }}
+            transition={{ duration: 2.6, repeat: Infinity, ease: "easeInOut" }}
+            className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-[18px] bg-gradient-to-br from-indigo-500 to-purple-500 text-2xl shadow-lg shadow-indigo-200 sm:mb-3 sm:h-16 sm:w-16 sm:rounded-[22px] sm:text-3xl"
+          >
             🧩
-          </div>
+          </motion.div>
 
-          <p className="text-xs font-bold text-indigo-500">
-            کَلَمَک
-          </p>
+          <p className="text-xs font-bold text-indigo-500">کَلَمَک</p>
 
-          <h1 className="mt-0.5 text-2xl font-black text-slate-800 sm:mt-1 sm:text-4xl">
+          <h1 className="mt-0.5 bg-gradient-to-l from-indigo-600 via-violet-600 to-purple-600 bg-clip-text text-2xl font-black text-transparent sm:mt-1 sm:text-4xl">
             مرحله {currentLevel}
           </h1>
 
@@ -837,34 +865,25 @@ export default function TablePage() {
         {/* WORDS */}
         <div
           ref={wordsRef}
-          className="mb-2 rounded-[28px] bg-white p-3 shadow-md ring-1 ring-slate-200 sm:mb-5 sm:rounded-[32px] sm:p-6"
+          className="mb-2 rounded-[28px] bg-white/90 p-3 shadow-md ring-1 ring-slate-200 backdrop-blur-sm sm:mb-5 sm:rounded-[32px] sm:p-6"
         >
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             {level.words.map((word) => {
               const found = foundWords.some(
-                (foundWord) =>
-                  normalizeWord(foundWord) === normalizeWord(word)
+                (foundWord) => normalizeWord(foundWord) === normalizeWord(word)
               );
 
               return (
                 <motion.div
                   key={word}
-                  animate={
+                  animate={found ? { scale: [1, 1.05, 1] } : {}}
+                  className={`flex min-h-[44px] items-center justify-center rounded-2xl border-2 px-2 text-center text-sm font-black transition-all sm:min-h-[58px] sm:px-3 sm:text-base ${
                     found
-                      ? { scale: [1, 1.05, 1] }
-                      : {}
-                  }
-                  className={`flex min-h-[44px] items-center justify-center rounded-2xl border-2 px-2 text-center text-sm font-black transition-all sm:min-h-[58px] sm:px-3 sm:text-base ${found
                       ? "border-emerald-200 bg-emerald-50 text-emerald-600"
                       : "border-slate-100 bg-slate-50 text-slate-300"
-                    }`}
+                  }`}
                 >
-                  {found
-                    ? word
-                    : word
-                      .split("")
-                      .map(() => "•")
-                      .join(" ")}
+                  {found ? word : word.split("").map(() => "•").join(" ")}
                 </motion.div>
               );
             })}
@@ -881,9 +900,7 @@ export default function TablePage() {
                 {currentWord}
               </motion.span>
             ) : (
-              <span className="text-sm font-bold text-slate-400">
-                کلمه را بساز
-              </span>
+              <span className="text-sm font-bold text-slate-400">کلمه را بساز</span>
             )}
           </div>
 
@@ -892,14 +909,15 @@ export default function TablePage() {
               <motion.div
                 initial={{ opacity: 0, y: 5 }}
                 animate={{ opacity: 1, y: [0, 0, 0], x: [0, -4, 4, -3, 3, 0] }}
-                className={`rounded-full px-3 py-1.5 text-[11px] font-bold sm:px-4 sm:py-2 sm:text-xs ${message.includes("قبلاً")
+                className={`rounded-full px-3 py-1.5 text-[11px] font-bold sm:px-4 sm:py-2 sm:text-xs ${
+                  message.includes("قبلاً")
                     ? "bg-amber-50 text-amber-700"
                     : message.includes("درست") ||
                       message.includes("جایزه") ||
                       message.includes("روشن")
-                      ? "bg-emerald-50 text-emerald-600"
-                      : "bg-red-50 text-red-500"
-                  }`}
+                    ? "bg-emerald-50 text-emerald-600"
+                    : "bg-red-50 text-red-500"
+                }`}
               >
                 {message}
               </motion.div>
@@ -910,42 +928,37 @@ export default function TablePage() {
         {/* LETTERS */}
         <div
           ref={lettersRef}
-          className="rounded-[30px] bg-white p-3 shadow-lg ring-1 ring-slate-200 sm:rounded-[36px] sm:p-7"
+          className="rounded-[30px] bg-white/90 p-3 shadow-lg ring-1 ring-slate-200 backdrop-blur-sm sm:rounded-[36px] sm:p-7"
         >
           <div className="mb-2 text-center sm:mb-6">
-            <p className="text-xs font-bold text-slate-400">
-              حروف مرحله
-            </p>
+            <p className="text-xs font-bold text-slate-400">حروف مرحله</p>
           </div>
 
           <div className="mb-3 flex flex-wrap justify-center gap-2 sm:mb-7 sm:gap-4">
-            {displayLetters.map(
-              ({ letter, originalIndex }) => {
-                const selected =
-                  selectedLetterIndexes.includes(originalIndex);
+            {displayLetters.map(({ letter, originalIndex }) => {
+              const selectedPosition = selectedLetterIndexes.indexOf(originalIndex);
+              const selected = selectedPosition !== -1;
+              const helped = selected && helpedPositions.includes(selectedPosition);
 
-                return (
-                  <motion.button
-                    key={`${letter}-${originalIndex}`}
-                    type="button"
-                    whileTap={{ scale: 0.88 }}
-                    whileHover={{ y: -3 }}
-                    onClick={() =>
-                      handleLetterClick(
-                        letter,
-                        originalIndex
-                      )
-                    }
-                    className={`flex h-[52px] w-[52px] items-center justify-center rounded-full border-[4px] text-xl font-black text-white shadow-md transition-all sm:h-[72px] sm:w-[72px] sm:border-[5px] sm:text-3xl ${selected
+              return (
+                <motion.button
+                  key={`${letter}-${originalIndex}`}
+                  type="button"
+                  whileTap={{ scale: 0.88 }}
+                  whileHover={{ y: -3 }}
+                  onClick={() => handleLetterClick(letter, originalIndex)}
+                  className={`flex h-[52px] w-[52px] items-center justify-center rounded-full border-[4px] text-xl font-black text-white shadow-md transition-all sm:h-[72px] sm:w-[72px] sm:border-[5px] sm:text-3xl ${
+                    helped
+                      ? "border-amber-200 bg-gradient-to-br from-amber-400 to-yellow-500 ring-4 ring-amber-100"
+                      : selected
                         ? "border-emerald-300 bg-gradient-to-br from-emerald-400 to-teal-500"
                         : "border-indigo-100 bg-gradient-to-br from-indigo-500 to-purple-500"
-                      }`}
-                  >
-                    {letter}
-                  </motion.button>
-                );
-              }
-            )}
+                  }`}
+                >
+                  {letter}
+                </motion.button>
+              );
+            })}
           </div>
 
           <div className="flex items-center justify-center gap-2 sm:gap-3">
@@ -953,8 +966,8 @@ export default function TablePage() {
               type="button"
               whileTap={{ scale: 0.94 }}
               onClick={removeLastLetter}
-              disabled={!selectedLetters.length}
-              className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-lg font-black text-slate-500 sm:h-12 sm:w-12 sm:text-xl transition hover:bg-slate-200 disabled:opacity-30"
+              disabled={!selectedLetters.some((_, index) => !helpedPositions.includes(index))}
+              className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-lg font-black text-slate-500 transition hover:bg-slate-200 disabled:opacity-30 sm:h-12 sm:w-12 sm:text-xl"
               aria-label="حذف آخرین حرف"
               title="حذف آخرین حرف"
             >
@@ -977,7 +990,7 @@ export default function TablePage() {
               whileTap={{ scale: 0.94 }}
               onClick={clearWord}
               disabled={!selectedLetters.length}
-              className="h-11 w-11 rounded-2xl bg-slate-100 text-[11px] font-black text-slate-500 sm:h-12 sm:w-12 sm:text-xs transition hover:bg-slate-200 disabled:opacity-30"
+              className="h-11 w-11 rounded-2xl bg-slate-100 text-[11px] font-black text-slate-500 transition hover:bg-slate-200 disabled:opacity-30 sm:h-12 sm:w-12 sm:text-xs"
               aria-label="پاک کردن کلمه"
               title="پاک کردن کلمه"
             >
@@ -1004,7 +1017,7 @@ export default function TablePage() {
               className="flex h-11 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-2xl bg-white px-2 shadow-lg ring-1 ring-slate-200 sm:h-12 sm:gap-2 sm:px-3"
             >
               <img
-               src="/pottery-svgrepo-com.svg"
+                src="/pottery-svgrepo-com.svg"
                 alt="سکه"
                 className="h-9 w-9 object-contain sm:h-10 sm:w-10"
               />
@@ -1019,10 +1032,7 @@ export default function TablePage() {
               type="button"
               whileTap={{ scale: 0.96 }}
               onClick={useHelp}
-              disabled={
-                coins < 5 ||
-                foundWords.length === level.words.length
-              }
+              disabled={coins < 5 || foundWords.length === level.words.length}
               className="flex h-11 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-2xl bg-gradient-to-r from-amber-400 to-yellow-500 px-2 text-xs font-black text-white shadow-lg transition hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-40 sm:h-12 sm:gap-2 sm:text-sm"
             >
               <span className="text-base sm:text-lg">💡</span>
@@ -1047,78 +1057,22 @@ export default function TablePage() {
           <motion.div
             initial={{ opacity: 0, scale: 0.95, y: 18 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            transition={{
-              duration: 0.35,
-              ease: [0.22, 1, 0.36, 1],
-            }}
-            className="
-        relative
-        flex
-        max-h-[88vh]
-        w-full
-        max-w-2xl
-        flex-col
-        overflow-hidden
-        rounded-[32px]
-        border
-        border-white/70
-        bg-[#f7faf6]
-        shadow-[0_30px_90px_rgba(15,23,42,0.30)]
-      "
+            transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+            className="relative flex max-h-[88vh] w-full max-w-2xl flex-col overflow-hidden rounded-[32px] border border-white/70 bg-[#f7faf6] shadow-[0_30px_90px_rgba(15,23,42,0.30)]"
           >
-            {/* =================================================
-          HEADER
-      ================================================== */}
-
+            {/* HEADER */}
             <div className="relative z-20 border-b border-slate-200/70 bg-white/95 px-5 py-4 sm:px-7">
               <button
                 type="button"
                 onClick={() => setShowLevelMap(false)}
-                className="
-            absolute
-            left-4
-            top-4
-            flex
-            h-9
-            w-9
-            items-center
-            justify-center
-            rounded-full
-            border
-            border-slate-200
-            bg-slate-50
-            text-lg
-            font-black
-            text-slate-500
-            transition-all
-            hover:scale-105
-            hover:bg-slate-100
-          "
+                className="absolute left-4 top-4 flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-lg font-black text-slate-500 transition-all hover:scale-105 hover:bg-slate-100"
                 aria-label="بستن"
               >
                 ×
               </button>
 
               <div className="text-center">
-                <div
-                  className="
-              mx-auto
-              mb-2.5
-              flex
-              h-11
-              w-11
-              items-center
-              justify-center
-              rounded-[16px]
-              bg-gradient-to-br
-              from-indigo-500
-              via-violet-500
-              to-purple-600
-              text-xl
-              shadow-lg
-              shadow-indigo-100
-            "
-                >
+                <div className="mx-auto mb-2.5 flex h-11 w-11 items-center justify-center rounded-[16px] bg-gradient-to-br from-indigo-500 via-violet-500 to-purple-600 text-xl shadow-lg shadow-indigo-100">
                   🗺️
                 </div>
 
@@ -1137,48 +1091,26 @@ export default function TablePage() {
 
                   <div className="rounded-full bg-amber-50 px-3 py-1 text-[10px] font-black text-amber-500 sm:text-xs">
                     ⭐{" "}
-                    {Object.values(levelStars).reduce(
-                      (sum, value) => sum + value,
-                      0
-                    )}
+                    {Object.values(levelStars).reduce((sum, value) => sum + value, 0)}
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* =================================================
-          MAP AREA
-      ================================================== */}
-
+            {/* MAP AREA */}
             <div className="relative flex-1 overflow-y-auto px-3 py-5 sm:px-5 sm:py-6">
-              {/* BACKGROUND DECOR */}
               <div className="pointer-events-none absolute inset-0 overflow-hidden">
                 <div className="absolute -right-20 top-10 h-36 w-36 rounded-full bg-emerald-100/60 blur-3xl" />
                 <div className="absolute -left-20 bottom-10 h-40 w-40 rounded-full bg-indigo-100/60 blur-3xl" />
                 <div className="absolute right-[18%] top-[25%] h-16 w-16 rounded-full bg-amber-100/40 blur-2xl" />
                 <div className="absolute left-[20%] top-[60%] h-20 w-20 rounded-full bg-purple-100/30 blur-2xl" />
 
-                <div className="absolute right-3 top-3 text-xl opacity-35">
-                  🌿
-                </div>
-
-                <div className="absolute left-4 top-[28%] text-xl opacity-30">
-                  🍃
-                </div>
-
-                <div className="absolute right-6 bottom-[18%] text-xl opacity-30">
-                  🌱
-                </div>
-
-                <div className="absolute left-7 bottom-5 text-xl opacity-25">
-                  🍀
-                </div>
+                <div className="absolute right-3 top-3 text-xl opacity-35">🌿</div>
+                <div className="absolute left-4 top-[28%] text-xl opacity-30">🍃</div>
+                <div className="absolute right-6 bottom-[18%] text-xl opacity-30">🌱</div>
+                <div className="absolute left-7 bottom-5 text-xl opacity-25">🍀</div>
               </div>
 
-              {/*
-          6 ستون:
-          هر ردیف جهتش عوض می‌شود و مسیر حالت مارپیچی پیدا می‌کند.
-        */}
               {(() => {
                 const columns = 6;
                 const rows = Math.ceil(mapLevels.length / columns);
@@ -1186,11 +1118,7 @@ export default function TablePage() {
                 const points = mapLevels.map((_, index) => {
                   const row = Math.floor(index / columns);
                   const position = index % columns;
-
-                  const column =
-                    row % 2 === 0
-                      ? position
-                      : columns - 1 - position;
+                  const column = row % 2 === 0 ? position : columns - 1 - position;
 
                   const x = ((column + 0.5) / columns) * 100;
                   const y = ((row + 0.5) / rows) * 100;
@@ -1205,9 +1133,7 @@ export default function TablePage() {
                     }
 
                     const previous = points[index - 1];
-
                     const controlX = (previous.x + point.x) / 2;
-                    const controlY = (previous.y + point.y) / 2;
 
                     return `Q ${controlX} ${previous.y}, ${point.x} ${point.y}`;
                   })
@@ -1215,20 +1141,13 @@ export default function TablePage() {
 
                 return (
                   <div className="relative mx-auto w-full max-w-[610px]">
-                    {/* PATH */}
                     <svg
                       viewBox="0 0 100 100"
                       preserveAspectRatio="none"
                       className="pointer-events-none absolute inset-0 z-0 h-full w-full"
                     >
                       <defs>
-                        <linearGradient
-                          id="levelPathGradient"
-                          x1="0%"
-                          y1="0%"
-                          x2="100%"
-                          y2="100%"
-                        >
+                        <linearGradient id="levelPathGradient" x1="0%" y1="0%" x2="100%" y2="100%">
                           <stop offset="0%" stopColor="#818cf8" />
                           <stop offset="45%" stopColor="#a78bfa" />
                           <stop offset="100%" stopColor="#34d399" />
@@ -1255,7 +1174,6 @@ export default function TablePage() {
                       />
                     </svg>
 
-                    {/* LEVEL GRID */}
                     <div
                       className="relative z-10 grid"
                       style={{
@@ -1269,19 +1187,16 @@ export default function TablePage() {
                         const stars = levelStars[levelNumber] ?? 0;
                         const active = levelNumber === currentLevel;
 
+                        const levelReward = getLevelReward(levelNumber);
+                        const bonusCoins =
+                          foundBonusWordsByLevel[levelNumber]?.length ?? 0;
+                        const totalLevelCoins = levelReward + bonusCoins;
+
                         return (
                           <motion.div
                             key={levelNumber}
-                            initial={{
-                              opacity: 0,
-                              scale: 0.8,
-                              y: 10,
-                            }}
-                            animate={{
-                              opacity: 1,
-                              scale: 1,
-                              y: 0,
-                            }}
+                            initial={{ opacity: 0, scale: 0.8, y: 10 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
                             transition={{
                               delay: Math.min(index * 0.025, 0.4),
                               duration: 0.35,
@@ -1289,178 +1204,57 @@ export default function TablePage() {
                             }}
                             className="relative flex items-center justify-center"
                           >
-                            {/* LEVEL NODE */}
                             <button
                               type="button"
                               disabled={!unlocked}
                               onClick={() => selectLevel(levelNumber)}
-                              className={`
-                          group
-                          relative
-                          flex
-                          h-[54px]
-                          w-[54px]
-                          items-center
-                          justify-center
-                          rounded-full
-                          border-[4px]
-                          font-black
-                          shadow-lg
-                          transition-all
-                          duration-200
-                          sm:h-[60px]
-                          sm:w-[60px]
-
-                          ${active
-                                  ? `
-                                border-indigo-200
-                                bg-gradient-to-br
-                                from-indigo-500
-                                via-violet-500
-                                to-purple-600
-                                text-white
-                                shadow-indigo-200
-                                ring-4
-                                ring-indigo-100/70
-                              `
+                              className={`group relative flex h-[54px] w-[54px] items-center justify-center rounded-full border-[4px] font-black shadow-lg transition-all duration-200 sm:h-[60px] sm:w-[60px] ${
+                                active
+                                  ? "border-indigo-200 bg-gradient-to-br from-indigo-500 via-violet-500 to-purple-600 text-white shadow-indigo-200 ring-4 ring-indigo-100/70"
                                   : completed
-                                    ? `
-                                  border-emerald-100
-                                  bg-gradient-to-br
-                                  from-emerald-400
-                                  to-teal-500
-                                  text-white
-                                  shadow-emerald-100
-                                `
-                                    : unlocked
-                                      ? `
-                                    border-white
-                                    bg-white
-                                    text-slate-700
-                                    shadow-slate-200
-                                    hover:-translate-y-1
-                                    hover:scale-105
-                                  `
-                                      : `
-                                    border-slate-200
-                                    bg-slate-100
-                                    text-slate-300
-                                  `
-                                }
-                        `}
+                                  ? "border-emerald-100 bg-gradient-to-br from-emerald-400 to-teal-500 text-white shadow-emerald-100"
+                                  : unlocked
+                                  ? "border-white bg-white text-slate-700 shadow-slate-200 hover:-translate-y-1 hover:scale-105"
+                                  : "border-slate-200 bg-slate-100 text-slate-300"
+                              }`}
                             >
-                              {/* TOP MINI BADGE */}
                               {completed && (
-                                <span
-                                  className="
-                              absolute
-                              -top-2
-                              left-1/2
-                              -translate-x-1/2
-                              rounded-full
-                              border
-                              border-white
-                              bg-white
-                              px-1.5
-                              py-0.5
-                              text-[8px]
-                              leading-none
-                              shadow-sm
-                            "
-                                >
+                                <span className="absolute -top-2 left-1/2 -translate-x-1/2 rounded-full border border-white bg-white px-1.5 py-0.5 text-[8px] leading-none shadow-sm">
                                   {"⭐".repeat(stars)}
                                 </span>
                               )}
 
-                              {/* MAIN CONTENT */}
                               {unlocked ? (
-                                <span className="text-lg sm:text-xl">
-                                  {levelNumber}
-                                </span>
+                                <span className="text-lg sm:text-xl">{levelNumber}</span>
                               ) : (
-                                <span className="text-lg opacity-80">
-                                  🔒
-                                </span>
+                                <span className="text-lg opacity-80">🔒</span>
                               )}
 
-                              {/* ACTIVE GLOW */}
                               {active && (
                                 <motion.span
-                                  animate={{
-                                    scale: [1, 1.15, 1],
-                                    opacity: [0.35, 0.1, 0.35],
-                                  }}
-                                  transition={{
-                                    duration: 1.8,
-                                    repeat: Infinity,
-                                    ease: "easeInOut",
-                                  }}
-                                  className="
-                              absolute
-                              -inset-2
-                              -z-10
-                              rounded-full
-                              bg-indigo-400
-                            "
+                                  animate={{ scale: [1, 1.15, 1], opacity: [0.35, 0.1, 0.35] }}
+                                  transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
+                                  className="absolute -inset-2 -z-10 rounded-full bg-indigo-400"
                                 />
                               )}
 
-                              {/* COMPLETED DOT */}
                               {completed && !active && (
                                 <span
-                                  className="
-                              absolute
-                              -bottom-1
-                              -right-1
-                              flex
-                              h-4
-                              w-4
-                              items-center
-                              justify-center
-                              rounded-full
-                              bg-white
-                              text-[8px]
-                              shadow-sm
-                              ring-1
-                              ring-emerald-100
-                            "
+                                  className="absolute -bottom-2 -right-2 flex h-7 min-w-7 items-center justify-center rounded-full border-2 border-white bg-white px-1 text-[9px] font-black text-yellow-500 shadow-md ring-1 ring-yellow-100"
+                                  title={`${totalLevelCoins} سکه از این مرحله`}
+                                  aria-label={`${totalLevelCoins} سکه از این مرحله`}
                                 >
-                                  ✓
+                                  🪙 {totalLevelCoins}
                                 </span>
                               )}
                             </button>
 
-                            {/* ACTIVE LABEL */}
                             {active && (
                               <motion.div
-                                initial={{
-                                  opacity: 0,
-                                  y: 4,
-                                }}
-                                animate={{
-                                  opacity: 1,
-                                  y: 0,
-                                }}
-                                transition={{
-                                  duration: 0.25,
-                                }}
-                                className="
-                            absolute
-                            -bottom-1
-                            left-1/2
-                            -translate-x-1/2
-                            translate-y-full
-                            whitespace-nowrap
-                            rounded-full
-                            bg-indigo-600
-                            px-2
-                            py-1
-                            text-[8px]
-                            font-black
-                            text-white
-                            shadow-md
-                            sm:text-[9px]
-                          "
+                                initial={{ opacity: 0, y: 4 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ duration: 0.25 }}
+                                className="absolute -bottom-1 left-1/2 -translate-x-1/2 translate-y-full whitespace-nowrap rounded-full bg-indigo-600 px-2 py-1 text-[8px] font-black text-white shadow-md sm:text-[9px]"
                               >
                                 اینجایی
                               </motion.div>
@@ -1474,10 +1268,7 @@ export default function TablePage() {
               })()}
             </div>
 
-            {/* =================================================
-          FOOTER
-      ================================================== */}
-
+            {/* FOOTER */}
             <div className="relative z-20 border-t border-slate-200/70 bg-white/95 px-4 py-3.5 sm:px-5">
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
@@ -1488,6 +1279,9 @@ export default function TablePage() {
                   <p className="mt-0.5 text-[9px] font-medium text-slate-400 sm:text-[10px]">
                     ⭐⭐⭐ با پیدا کردن ۵ کلمه جایزه یا بیشتر
                   </p>
+                  <p className="mt-0.5 text-[9px] font-medium text-slate-400 sm:text-[10px]">
+                    🪙 عدد زیر هر مرحله، جایزه سکه همان مرحله است
+                  </p>
                 </div>
 
                 <button
@@ -1496,26 +1290,7 @@ export default function TablePage() {
                     setShowLevelMap(false);
                     setCurrentLevel(maxUnlockedLevel);
                   }}
-                  className="
-              shrink-0
-              rounded-2xl
-              bg-gradient-to-r
-              from-indigo-500
-              via-violet-500
-              to-purple-600
-              px-4
-              py-2.5
-              text-[10px]
-              font-black
-              text-white
-              shadow-lg
-              shadow-indigo-100
-              transition-all
-              hover:-translate-y-0.5
-              hover:shadow-xl
-              sm:px-5
-              sm:text-xs
-            "
+                  className="shrink-0 rounded-2xl bg-gradient-to-r from-indigo-500 via-violet-500 to-purple-600 px-4 py-2.5 text-[10px] font-black text-white shadow-lg shadow-indigo-100 transition-all hover:-translate-y-0.5 hover:shadow-xl sm:px-5 sm:text-xs"
                 >
                   ادامه بازی →
                 </button>
@@ -1530,10 +1305,7 @@ export default function TablePage() {
       ===================================================== */}
 
       {showTutorial && tutorialTarget && (
-        <div
-          dir="rtl"
-          className="pointer-events-none fixed inset-0 z-[100]"
-        >
+        <div dir="rtl" className="pointer-events-none fixed inset-0 z-[100]">
           <div className="absolute inset-0 bg-slate-950/35 backdrop-blur-[1px]" />
 
           <button
@@ -1561,23 +1333,13 @@ export default function TablePage() {
           <motion.div
             key={`arrow-${tutorialStep}`}
             initial={{ opacity: 0, y: -8 }}
-            animate={{
-              opacity: 1,
-              y: [0, 7, 0],
-            }}
+            animate={{ opacity: 1, y: [0, 7, 0] }}
             transition={{
               opacity: { duration: 0.25 },
-              y: {
-                duration: 1,
-                repeat: Infinity,
-                ease: "easeInOut",
-              },
+              y: { duration: 1, repeat: Infinity, ease: "easeInOut" },
             }}
             className="absolute z-[102] -translate-x-1/2 text-5xl font-black leading-none text-indigo-600 drop-shadow-lg"
-            style={{
-              top: arrowTop,
-              left: arrowLeft,
-            }}
+            style={{ top: arrowTop, left: arrowLeft }}
           >
             ↓
           </motion.div>
@@ -1585,38 +1347,19 @@ export default function TablePage() {
           <motion.div
             ref={tutorialCardRef}
             key={`card-${tutorialStep}`}
-            initial={{
-              opacity: 0,
-              y: 15,
-              scale: 0.95,
-            }}
-            animate={{
-              opacity: 1,
-              y: 0,
-              scale: 1,
-            }}
-            transition={{
-              duration: 0.35,
-              ease: "easeOut",
-            }}
+            initial={{ opacity: 0, y: 15, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ duration: 0.35, ease: "easeOut" }}
             className="absolute z-[103] w-[calc(100vw-28px)] max-w-[390px] rounded-[30px] border border-white/80 bg-white p-5 text-center shadow-[0_20px_70px_rgba(15,23,42,0.25)]"
             style={{
               top: tutorialCard?.top ?? 20,
-              left:
-                tutorialCard?.left ??
-                Math.max(14, (window.innerWidth - 390) / 2),
+              left: tutorialCard?.left ?? Math.max(14, (window.innerWidth - 390) / 2),
             }}
           >
             <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-50 text-3xl shadow-sm">
               <motion.span
-                animate={{
-                  scale: [1, 1.12, 1],
-                  y: [0, -2, 0],
-                }}
-                transition={{
-                  duration: 1.2,
-                  repeat: Infinity,
-                }}
+                animate={{ scale: [1, 1.12, 1], y: [0, -2, 0] }}
+                transition={{ duration: 1.2, repeat: Infinity }}
               >
                 {tutorialData.icon}
               </motion.span>
@@ -1626,9 +1369,7 @@ export default function TablePage() {
               مرحله {tutorialStep + 1} از ۴
             </div>
 
-            <h3 className="mt-2 text-xl font-black text-slate-800">
-              {tutorialData.title}
-            </h3>
+            <h3 className="mt-2 text-xl font-black text-slate-800">{tutorialData.title}</h3>
 
             <p className="mx-auto mt-2 max-w-[330px] text-sm font-medium leading-7 text-slate-500">
               {tutorialData.text}
@@ -1642,10 +1383,9 @@ export default function TablePage() {
               {[0, 1, 2, 3].map((step) => (
                 <span
                   key={step}
-                  className={`h-2 rounded-full transition-all ${step === tutorialStep
-                      ? "w-7 bg-indigo-500"
-                      : "w-2 bg-slate-200"
-                    }`}
+                  className={`h-2 rounded-full transition-all ${
+                    step === tutorialStep ? "w-7 bg-indigo-500" : "w-2 bg-slate-200"
+                  }`}
                 />
               ))}
             </div>
@@ -1659,29 +1399,16 @@ export default function TablePage() {
 
       {showWin && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900 px-5"
-          style={{
-            backgroundColor: "rgba(15,23,42,0.50)",
-          }}
+          className="fixed inset-0 z-50 flex items-center justify-center px-5"
+          style={{ backgroundColor: "rgba(15,23,42,0.50)" }}
         >
           <motion.div
-            initial={{
-              opacity: 0,
-              scale: 0.8,
-              y: 30,
-            }}
-            animate={{
-              opacity: 1,
-              scale: 1,
-              y: 0,
-            }}
+            initial={{ opacity: 0, scale: 0.8, y: 30 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
             className="w-full max-w-sm rounded-[36px] bg-white p-7 text-center shadow-2xl"
           >
             <motion.div
-              animate={{
-                rotate: [0, -8, 8, -5, 5, 0],
-                scale: [1, 1.15, 1],
-              }}
+              animate={{ rotate: [0, -8, 8, -5, 5, 0], scale: [1, 1.15, 1] }}
               transition={{ duration: 0.8 }}
               className="text-7xl"
             >
@@ -1692,28 +1419,22 @@ export default function TablePage() {
               مرحله {currentLevel} کامل شد
             </p>
 
-            <h2 className="mt-1 text-3xl font-black text-slate-800">
-              عالی بود!
-            </h2>
+            <h2 className="mt-1 text-3xl font-black text-slate-800">عالی بود!</h2>
 
             <div className="mt-4">
-              <p className="text-xs font-bold text-slate-400">
-                امتیاز این مرحله
-              </p>
+              <p className="text-xs font-bold text-slate-400">امتیاز این مرحله</p>
 
               <div className="mt-2 text-3xl tracking-[0.2em]">
                 {"⭐".repeat(currentStars)}
-                <span className="opacity-20">
-                  {"⭐".repeat(3 - currentStars)}
-                </span>
+                <span className="opacity-20">{"⭐".repeat(3 - currentStars)}</span>
               </div>
 
               <p className="mt-2 text-xs font-bold text-slate-500">
                 {currentBonusCount >= 5
                   ? "۵ کلمه اضافه یا بیشتر؛ سه ستاره گرفتی!"
                   : currentBonusCount >= 1
-                    ? "کلمه‌های اضافه پیدا کردی؛ دو ستاره گرفتی!"
-                    : "مرحله را کامل کردی؛ یک ستاره گرفتی!"}
+                  ? "کلمه‌های اضافه پیدا کردی؛ دو ستاره گرفتی!"
+                  : "مرحله را کامل کردی؛ یک ستاره گرفتی!"}
               </p>
             </div>
 
@@ -1722,8 +1443,7 @@ export default function TablePage() {
             </p>
 
             <div className="mx-auto mt-5 flex w-fit items-center gap-2 rounded-full bg-yellow-50 px-5 py-2.5 text-sm font-black text-yellow-500">
-              🪙
-              {coins} سکه
+              🪙 {coins} سکه
             </div>
 
             {currentLevel < TOTAL_LEVELS ? (
