@@ -131,7 +131,7 @@ const DOTS: React.CSSProperties = {
   backgroundSize: "22px 22px",
 };
 
-type Screen = "menu" | "tutorial" | "game" | "over";
+type Screen = "menu" | "tutorial" | "game" | "over" | "nextTest" | "comingSoon";
 type Phase = "memorize" | "input" | "levelup";
 
 type Flash = {
@@ -139,6 +139,48 @@ type Flash = {
   kind: "good" | "bad";
   amount: number;
 };
+
+type MemoryMetrics = {
+  errors: number;
+  replays: number;
+  attempts: number;
+  averageResponseMs: number;
+  totalInputMs: number;
+  score: number;
+};
+
+function calculateMemoryScore({
+  errors,
+  replays,
+  averageResponseMs,
+}: Pick<
+  MemoryMetrics,
+  "errors" | "replays" | "averageResponseMs"
+>) {
+  const errorPenalty = Math.min(errors * 1.5, 12);
+  const replayPenalty = Math.min(replays * 0.75, 6);
+
+  let speedPenalty = 0;
+
+  if (averageResponseMs > 3000) {
+    speedPenalty = 8;
+  } else if (averageResponseMs > 1800) {
+    speedPenalty = 3 + ((averageResponseMs - 1800) / 1200) * 5;
+  } else if (averageResponseMs > 1000) {
+    speedPenalty = ((averageResponseMs - 1000) / 800) * 3;
+  }
+
+  return Math.max(
+    80,
+    Math.min(
+      100,
+      Math.round(100 - errorPenalty - replayPenalty - speedPenalty)
+    )
+  );
+}
+
+const formatSeconds = (ms: number) =>
+  `${(ms / 1000).toFixed(1).replace(".0", "")} ثانیه`;
 
 /* ------------------------------------------------------------------ */
 /* ابزارها                                                             */
@@ -680,7 +722,8 @@ function Game({
 }: {
   onOver: (
     completedLevels: number,
-    won?: boolean
+    won?: boolean,
+    metrics?: MemoryMetrics
   ) => void;
   initialLevel: number;
 }) {
@@ -712,6 +755,68 @@ function Game({
     useRef<ReturnType<typeof setTimeout> | null>(
       null
     );
+
+  const statsRef = useRef({
+    errors: 0,
+    replays: 0,
+    attempts: 0,
+    totalResponseMs: 0,
+    totalInputMs: 0,
+  });
+
+  const inputStartedAtRef = useRef<number | null>(null);
+  const lastPickAtRef = useRef<number | null>(null);
+
+  const resetInputClock = useCallback(() => {
+    const now = Date.now();
+    inputStartedAtRef.current = now;
+    lastPickAtRef.current = now;
+  }, []);
+
+  const commitInputSegment = useCallback(() => {
+    if (inputStartedAtRef.current === null) return;
+
+    const elapsed = Math.max(
+      0,
+      Date.now() - inputStartedAtRef.current
+    );
+
+    statsRef.current.totalInputMs += Math.min(
+      elapsed,
+      START_TIME_MS
+    );
+
+    inputStartedAtRef.current = null;
+    lastPickAtRef.current = null;
+  }, []);
+
+  const buildMetrics = useCallback((): MemoryMetrics => {
+    const {
+      errors,
+      replays,
+      attempts,
+      totalResponseMs,
+      totalInputMs,
+    } = statsRef.current;
+
+    const averageResponseMs =
+      attempts > 0
+        ? totalResponseMs / attempts
+        : 0;
+
+    return {
+      errors,
+      replays,
+      attempts,
+      averageResponseMs,
+      totalInputMs,
+      score: calculateMemoryScore({
+        errors,
+        replays,
+        averageResponseMs,
+      }),
+    };
+  }, []);
 
   const showFlash = (
     kind: Flash["kind"],
@@ -748,8 +853,9 @@ function Game({
       !modal &&
       !finished.current
     ) {
+      commitInputSegment();
       finished.current = true;
-      onOver(level - 1);
+      onOver(level - 1, false, buildMetrics());
     }
   }, [
     timeMs,
@@ -762,6 +868,7 @@ function Game({
     if (phase !== "memorize") return;
 
     const id = setTimeout(() => {
+      resetInputClock();
       setPhase("input");
     }, round.memorizeMs);
 
@@ -772,6 +879,7 @@ function Game({
     level,
     replays,
     round.memorizeMs,
+    resetInputClock,
   ]);
 
   useEffect(() => {
@@ -788,7 +896,8 @@ function Game({
   const closeModal = useCallback(() => {
     setModal(false);
     setPicked([]);
-  }, []);
+    resetInputClock();
+  }, [resetInputClock]);
 
   useEffect(() => {
     if (!modal) return;
@@ -809,8 +918,10 @@ function Game({
           nextTimer.current
         );
       }
+
+      commitInputSegment();
     },
-    []
+    [commitInputSegment]
   );
 
   const handlePick = (sym: string) => {
@@ -820,6 +931,21 @@ function Game({
     ) {
       return;
     }
+
+    const now = Date.now();
+    const reactionMs = Math.max(
+      0,
+      Math.min(
+        10_000,
+        now -
+          (lastPickAtRef.current ??
+            now)
+      )
+    );
+
+    statsRef.current.attempts += 1;
+    statsRef.current.totalResponseMs += reactionMs;
+    lastPickAtRef.current = now;
 
     const expected =
       round.sequence[picked.length];
@@ -847,11 +973,12 @@ function Game({
         if (
           level >= LEVELS.length
         ) {
+          commitInputSegment();
           finished.current = true;
 
           nextTimer.current =
             setTimeout(() => {
-              onOver(level, true);
+              onOver(level, true, buildMetrics());
             }, 1100);
         } else {
           nextTimer.current =
@@ -873,6 +1000,8 @@ function Game({
         }
       }
     } else {
+      statsRef.current.errors += 1;
+
       setTimeMs((t) =>
         Math.max(
           0,
@@ -894,6 +1023,8 @@ function Game({
 
   const handleReplay = () => {
     if (!canReplay) return;
+
+    statsRef.current.replays += 1;
 
     setTimeMs((t) =>
       Math.max(
@@ -1743,6 +1874,212 @@ function HeroFan() {
 }
 
 /* ------------------------------------------------------------------ */
+/* مرحله بعدی                                                           */
+/* ------------------------------------------------------------------ */
+
+function DoctorNextTest({
+  metrics,
+  onStartStars,
+  onBack,
+}: {
+  metrics: MemoryMetrics;
+  onStartStars: () => void;
+  onBack: () => void;
+}) {
+  return (
+    <div className="flex flex-1 flex-col items-center justify-center py-8 text-center">
+      <div className="w-full max-w-md">
+        <div className="relative overflow-visible">
+          <Panel
+            className="relative !p-5 sm:!p-6"
+            style={{
+              backgroundColor: "#FFFFFF",
+              boxShadow: `6px 6px 0 ${INK}`,
+            }}
+          >
+            <div className="flex flex-col items-center">
+              <div className="relative flex w-full flex-col items-center">
+                <div
+                  className="relative z-10 h-28 w-28 overflow-hidden rounded-full border-[4px] border-[#1E1B3A] bg-[#D6FFF0] shadow-[4px_4px_0_#1E1B3A]"
+                  aria-label="تصویر دکتر"
+                >
+                  {/* برای قرار دادن عکس سر دکتر، این فایل را با تصویر دلخواهت جایگزین کن. */}
+                  <img
+                    src="/pic/drHead.png"
+                    alt="دکتر سعید"
+                    className="h-full w-full object-cover object-top"
+                  />
+                </div>
+
+                <div
+                  className="relative mt-5 w-full rounded-[2rem] border-[3px] border-[#1E1B3A] bg-[#FFF7C2] px-5 py-5 text-right shadow-[4px_4px_0_#1E1B3A]"
+                  dir="rtl"
+                >
+                  <div
+                    className="absolute -top-4 left-1/2 h-7 w-7 -translate-x-1/2 rotate-45 border-l-[3px] border-t-[3px] border-[#1E1B3A] bg-[#FFF7C2]"
+                    aria-hidden
+                  />
+
+                  <div className="relative">
+                    <p
+                      className="text-2xl leading-9"
+                      style={DISPLAY}
+                    >
+                      آفرین! 🎉
+                    </p>
+
+                    <p className="mt-3 text-sm font-bold leading-7">
+                      امتیاز حافظه‌ات در این تست شد:
+                    </p>
+
+                    <div className="my-4 flex items-center justify-center gap-3">
+                      <span
+                        className="text-6xl leading-none"
+                        style={{
+                          ...DISPLAY,
+                          color: COLOR.violet,
+                        }}
+                      >
+                        {toFa(metrics.score)}
+                      </span>
+
+                      <span
+                        className="text-xl font-black"
+                        style={DISPLAY}
+                      >
+                        از ۱۰۰
+                      </span>
+                    </div>
+
+                    <p className="text-sm font-bold leading-7">
+                      این امتیاز بر اساس <b>سرعت انتخاب‌ها</b>،
+                      تعداد <b>خطاها</b> و دفعات <b>نمایش دوباره</b> محاسبه شده.
+                      <br />
+                      حالا بریم ببینیم در تست‌های بعدی چه عملکردی داری.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-6 grid w-full grid-cols-3 gap-2">
+                <Chip bg={COLOR.yellow} rotate={-1}>
+                  🧠 امتیاز {toFa(metrics.score)}
+                </Chip>
+                <Chip bg={COLOR.pink} rotate={0}>
+                  ❌ خطا {toFa(metrics.errors)}
+                </Chip>
+                <Chip bg={COLOR.sky} rotate={1}>
+                  👁️ نمایش دوباره {toFa(metrics.replays)}
+                </Chip>
+              </div>
+
+              <p className="mt-3 text-xs font-bold text-slate-500">
+                میانگین زمان پاسخ: {formatSeconds(metrics.averageResponseMs)}
+              </p>
+            </div>
+          </Panel>
+
+          <div
+            className="pointer-events-none absolute -left-3 top-6 text-3xl"
+            aria-hidden
+          >
+            ✨
+          </div>
+          <div
+            className="pointer-events-none absolute -right-3 top-20 text-3xl"
+            aria-hidden
+          >
+            ⭐
+          </div>
+        </div>
+
+        <div className="mt-7 w-full space-y-3">
+          <PrimaryButton onClick={onStartStars}>
+            ⭐ شروع بازی ستاره‌ها
+          </PrimaryButton>
+
+          <SecondaryButton onClick={onBack}>
+            ← بازگشت به منوی بازی‌ها
+          </SecondaryButton>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StarsComingSoon({
+  onBack,
+}: {
+  onBack: () => void;
+}) {
+  return (
+    <div className="flex flex-1 flex-col items-center justify-center py-8 text-center">
+      <div className="w-full max-w-md">
+        <div className="mb-6 flex items-center justify-center gap-3 text-4xl">
+          <span aria-hidden>⭐</span>
+          <span aria-hidden>✨</span>
+          <span aria-hidden>⭐</span>
+        </div>
+
+        <Panel
+          className="!p-7 sm:!p-8"
+          style={{
+            backgroundColor: "#FFFFFF",
+            boxShadow: `6px 6px 0 ${INK}`,
+          }}
+        >
+          <div
+            className="mx-auto flex h-24 w-24 items-center justify-center rounded-full border-[3px] border-[#1E1B3A] bg-[#FFD43B] text-5xl shadow-[4px_4px_0_#1E1B3A]"
+            aria-hidden
+          >
+            ⭐
+          </div>
+
+          <h1
+            className="mt-6 text-5xl leading-none"
+            style={{
+              ...DISPLAY,
+              color: COLOR.violet,
+            }}
+          >
+            بازی ستاره‌ها
+          </h1>
+
+          <div
+            className="mx-auto mt-5 inline-flex rounded-full border-[3px] border-[#1E1B3A] bg-[#FF5C8A] px-5 py-2 text-2xl text-white shadow-[3px_3px_0_#1E1B3A]"
+            style={DISPLAY}
+          >
+            به‌زودی
+          </div>
+
+          <p
+            className="mt-3 text-xl"
+            style={{
+              ...DISPLAY,
+              color: INK,
+            }}
+          >
+            Coming Soon
+          </p>
+
+          <p className="mt-4 text-sm font-bold leading-7 text-slate-600">
+            این بازی در حال آماده‌سازی است.
+            <br />
+            به‌زودی یک چالش تازه برای سرعت محاسبات و هوش ریاضی در دسترس قرار می‌گیرد. 🚀
+          </p>
+        </Panel>
+
+        <div className="mt-7 w-full">
+          <SecondaryButton onClick={onBack}>
+            ← بازگشت به منوی بازی‌ها
+          </SecondaryButton>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /* صفحه اصلی                                                           */
 /* ------------------------------------------------------------------ */
 
@@ -1768,6 +2105,16 @@ export default function VisualPage() {
   const [won, setWon] =
     useState(false);
 
+  const [memoryMetrics, setMemoryMetrics] =
+    useState<MemoryMetrics>({
+      errors: 0,
+      replays: 0,
+      attempts: 0,
+      averageResponseMs: 0,
+      totalInputMs: 0,
+      score: 0,
+    });
+
   useEffect(() => {
     try {
       const v = Number(
@@ -1789,10 +2136,9 @@ export default function VisualPage() {
    * قبل از رسیدن به لول ۱۰ → لول ۱
    * بعد از رسیدن به لول ۱۰ → لول ۵
    */
-  const startLevel =
-    best >= CHECKPOINT_LEVEL
-      ? RESTART_LEVEL
-      : 1;
+  // برای تست سریع مسیر پایان لول ۲۰، فعلاً روی ۲۰ است.
+  // بعد از اتمام طراحی، آن را به منطق عادی شروع بازی برگردان.
+  const startLevel = 20;
 
   const startGame = () => {
     setGameKey(
@@ -1805,7 +2151,8 @@ export default function VisualPage() {
   const handleOver = useCallback(
     (
       completed: number,
-      didWin = false
+      didWin = false,
+      metrics?: MemoryMetrics
     ) => {
       const record =
         completed > best;
@@ -1826,7 +2173,17 @@ export default function VisualPage() {
       setScore(completed);
       setNewRecord(record);
       setWon(didWin);
-      setScreen("over");
+
+      if (metrics) {
+        setMemoryMetrics(metrics);
+      }
+
+      // بعد از تکمیل لول ۲۰، کاربر ابتدا وارد معرفی تست بعدی می‌شود.
+      if (didWin && completed >= LEVELS.length) {
+        setScreen("nextTest");
+      } else {
+        setScreen("over");
+      }
     },
     [best]
   );
@@ -1953,6 +2310,20 @@ export default function VisualPage() {
             onOver={
               handleOver
             }
+          />
+        )}
+
+        {screen === "nextTest" && (
+          <DoctorNextTest
+            metrics={memoryMetrics}
+            onStartStars={() => setScreen("comingSoon")}
+            onBack={() => router.push("/games")}
+          />
+        )}
+
+        {screen === "comingSoon" && (
+          <StarsComingSoon
+            onBack={() => router.push("/games")}
           />
         )}
 
