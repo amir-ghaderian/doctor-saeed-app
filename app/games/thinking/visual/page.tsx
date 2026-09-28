@@ -2138,7 +2138,10 @@ export default function VisualPage() {
    */
   // برای تست سریع مسیر پایان لول ۲۰، فعلاً روی ۲۰ است.
   // بعد از اتمام طراحی، آن را به منطق عادی شروع بازی برگردان.
-  const startLevel = 20;
+  const startLevel =
+  best >= CHECKPOINT_LEVEL
+    ? RESTART_LEVEL
+    : 1;
 
   const startGame = () => {
     setGameKey(
