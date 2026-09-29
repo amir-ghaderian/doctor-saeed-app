@@ -1,519 +1,92 @@
 "use client";
 
-import { AnimatePresence, motion } from "framer-motion";
+import { useState } from "react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import {
+  ArrowRightIcon,
+  ChevronLeftIcon,
+  LightBulbIcon,
+  GoalIcon,
+  GraphIcon,
+  HeartIcon,
+  HomeIcon,
+  PeopleIcon,
+  PlayIcon,
+  RocketIcon,
+  SearchIcon,
+  ShieldCheckIcon,
+  ThreeBarsIcon,
+  XIcon,
+} from "@primer/octicons-react";
+import { Button, Heading as PrimerHeading, Stack, Text as PrimerText } from "@primer/react";
 
-const quotes = [
-  "سلام، من دکتر سعید هستم.",
-  "سلامت روان، مهم‌ترین عامل موفقیت در تمام جنبه‌های زندگی",
-  "ذهن آرام و متمرکز = تصمیم‌های بهتر + عملکرد مطلوب‌تر",
-  "ورزشکار با روان قوی، فشار مسابقات را بهتر مدیریت می‌کند",
-  "سلامت روان به اندازه سلامت جسم اهمیت دارد",
-  "تمرین تمرکز و مهارت‌های شناختی، عملکرد ذهن را بهبود می‌بخشد",
-  "سلامت روان = کیفیت زندگی + موفقیت + آینده‌ای سالم‌تر",
+const Box = Stack;
+const Text = PrimerText as unknown as React.ComponentType<any>;
+const Heading = PrimerHeading as unknown as React.ComponentType<any>;
+
+const quickLinks = [
+  { href: "/games", title: "بازی‌های ذهنی", text: "تمرکز، حافظه و واکنش", icon: LightBulbIcon, tone: "accent" },
+  { href: "/mental-health-form", title: "ارزیابی ذهنی", text: "شناخت بهتر وضعیت فعلی", icon: GraphIcon, tone: "success" },
+  { href: "/games/management", title: "مدیریت ورزشی", text: "یادگیری و تصمیم‌گیری", icon: GoalIcon, tone: "attention" },
+  { href: "/games/mental-health", title: "سلامت روان", text: "آرامش و عملکرد پایدار", icon: HeartIcon, tone: "severe" },
 ];
 
-const benefits = [
-  "ذهن آرام و متمرکز، تصمیم‌های بهتر و عملکرد مطلوب‌تر می‌سازد",
-  "ورزشکار با روان قوی، فشار مسابقات را بهتر مدیریت می‌کند",
-  "سرمایه‌گذاری روی سلامت روان = کیفیت زندگی بهتر",
-];
+const features = [
+  [ShieldCheckIcon, "امن و محرمانه", "نتایج شما فقط برای خودتان است."],
+  [RocketIcon, "ساده و کاربردی", "از همین امروز شروع کنید."],
+  [PeopleIcon, "برای همه", "ورزشکار، مربی و علاقه‌مند."],
+] as const;
 
-export default function BalloonVersion() {
-  const [quoteIndex, setQuoteIndex] = useState(0);
-
-  useEffect(() => {
-    const interval = window.setInterval(() => {
-      setQuoteIndex((prev) => (prev + 1) % quotes.length);
-    }, 4000);
-
-    return () => window.clearInterval(interval);
-  }, []);
+export default function HomePage() {
+  const [menuOpen, setMenuOpen] = useState(false);
 
   return (
-    <main
-      dir="rtl"
-      className="
-        min-h-screen
-        min-h-[100svh]
-        bg-[#f7fbfd]
-        px-4 py-4
-        sm:px-6 sm:py-6
-        lg:px-8 lg:py-8
-        flex items-center justify-center
-      "
-    >
-      <div
-        aria-hidden="true"
-        className="
-          pointer-events-none
-          fixed inset-0 overflow-hidden
-        "
-      >
-        <div
-          className="
-            absolute
-            -top-32 -right-32
-            h-72 w-72
-            rounded-full
-            bg-sky-100/70
-            blur-3xl
-            sm:h-96 sm:w-96
-          "
-        />
-
-        <div
-          className="
-            absolute
-            -bottom-40 -left-40
-            h-80 w-80
-            rounded-full
-            bg-cyan-100/60
-            blur-3xl
-            sm:h-[28rem] sm:w-[28rem]
-          "
-        />
-      </div>
-
-      <section
-        className="
-          relative z-10
-          w-full
-          max-w-[1380px]
-          overflow-hidden
-          rounded-[28px]
-          border border-slate-200/80
-          bg-white
-          shadow-[0_24px_80px_rgba(15,23,42,0.10)]
-          sm:rounded-[32px]
-          lg:rounded-[40px]
-        "
-      >
-        <div
-          className="
-            flex
-            items-center
-            justify-between
-            gap-3
-            border-b border-slate-100
-            px-4 py-3
-            sm:px-6 sm:py-4
-            lg:px-8
-          "
-        >
-          <div className="flex min-w-0 items-center gap-2">
-            <div
-              className="
-                flex h-9 w-9 shrink-0 items-center justify-center
-                rounded-xl
-                bg-sky-50
-                text-sky-600
-                sm:h-10 sm:w-10
-              "
-            >
-              <span className="text-lg">✦</span>
-            </div>
-
-            <div className="min-w-0">
-              <p className="truncate text-xs font-semibold text-slate-500 sm:text-sm">
-                تَکَل
-              </p>
-
-              <p className="hidden text-[11px] text-slate-400 sm:block">
-                سلامت روان و عملکرد
-              </p>
-            </div>
-          </div>
-
-          <Link
-            href="/"
-            className="
-              inline-flex shrink-0 items-center justify-center
-              rounded-xl
-              border border-slate-200
-              bg-white
-              px-3 py-2
-              text-xs font-semibold
-              text-slate-600
-              shadow-sm
-              transition
-              hover:border-sky-200
-              hover:bg-sky-50
-              hover:text-sky-700
-              sm:px-4 sm:py-2.5 sm:text-sm
-            "
-          >
-            <span className="ml-1.5">←</span>
-            <span className="hidden sm:inline">بازگشت به صفحه اصلی</span>
-            <span className="sm:hidden">بازگشت</span>
+    <main dir="rtl" style={{ minHeight: "100svh", background: "var(--bgColor-muted)" }}>
+      <header style={{ position: "sticky", top: 0, zIndex: 20, background: "color-mix(in srgb, var(--bgColor-default) 88%, transparent)", backdropFilter: "blur(16px)", borderBottom: "1px solid var(--borderColor-muted)" }}>
+        <Box sx={{ maxWidth: "1200px", mx: "auto", px: [3, 4, 5], py: 3, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <Link href="/" aria-label="صفحه اصلی تکل" style={{ textDecoration: "none", color: "inherit" }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+              <Box sx={{ width: 40, height: 40, borderRadius: 2, display: "grid", placeItems: "center", bg: "accent.emphasis", color: "fg.onEmphasis" }}><LightBulbIcon size={22} /></Box>
+              <Box><Text sx={{ display: "block", fontSize: 2, fontWeight: "bold" }}>تکل</Text><Text sx={{ color: "fg.muted", fontSize: 0 }}>سلامت روان و عملکرد</Text></Box>
+            </Box>
           </Link>
-        </div>
+          <Box sx={{ display: ["none", "flex"], alignItems: "center", gap: 2 }}>
+            <Button as={Link} href="/games" leadingVisual={PlayIcon} variant="primary">شروع ارزیابی</Button>
+            <Button as={Link} href="/mental-health-form" variant="invisible">ورود / ثبت‌نام</Button>
+          </Box>
+          <Button aria-label={menuOpen ? "بستن منو" : "باز کردن منو"} onClick={() => setMenuOpen(!menuOpen)} style={{ minWidth: 40, paddingInline: 8 }} variant="invisible">{menuOpen ? <XIcon /> : <ThreeBarsIcon />}</Button>
+        </Box>
+        {menuOpen && <Box sx={{ display: ["block", "none"], px: 3, pb: 3 }}><Box sx={{ display: "grid", gap: 2 }}><Button as={Link} href="/games" variant="primary" leadingVisual={PlayIcon} onClick={() => setMenuOpen(false)}>شروع ارزیابی</Button><Button as={Link} href="/mental-health-form" variant="default" onClick={() => setMenuOpen(false)}>ورود / ثبت‌نام</Button></Box></Box>}
+      </header>
 
-        <div
-          className="
-            grid
-            grid-cols-1
-            gap-8
-            p-4
-            sm:gap-10 sm:p-6
-            md:p-8
-            lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]
-            lg:gap-12
-            lg:p-10
-            xl:gap-16
-            xl:p-12
-          "
-        >
-          <motion.div
-            initial={{ opacity: 0, x: -35 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.7, ease: "easeOut" }}
-            className="
-              relative
-              flex
-              min-w-0
-              items-center
-              justify-center
-              lg:order-1
-            "
-          >
-            <div className="relative w-full max-w-[620px]">
-              <div
-                aria-hidden="true"
-                className="
-                  absolute
-                  -inset-2
-                  rounded-[28px]
-                  bg-sky-50
-                  sm:-inset-3 sm:rounded-[34px]
-                  lg:-inset-4 lg:rounded-[40px]
-                "
-              />
+      <Box sx={{ maxWidth: "1200px", mx: "auto", px: [3, 4, 5], py: [5, 6, 8] }}>
+        <Box sx={{ display: "grid", gridTemplateColumns: ["1fr", "1fr", "1.05fr .95fr"], gap: [5, 6, 8], alignItems: "center" }}>
+          <Box>
+            <Box sx={{ display: "inline-flex", alignItems: "center", gap: 2, px: 2, py: 1, borderRadius: 999, bg: "accent.muted", color: "accent.fg", fontSize: 0, fontWeight: "bold" }}><span style={{ width: 7, height: 7, borderRadius: "50%", background: "currentColor" }} /> مسیر بهتر از ذهن شروع می‌شود</Box>
+            <Heading as="h1" sx={{ fontSize: [5, 6, 8], lineHeight: "condensed", letterSpacing: "tight", mt: 3, mb: 3 }}>ذهن قوی‌تر،<br /><Box as="span" sx={{ color: "accent.fg" }}>عملکرد بهتر</Box></Heading>
+            <Text sx={{ display: "block", color: "fg.muted", fontSize: [2, 3], lineHeight: "condensed", maxWidth: "620px", mb: 4 }}>با تکل، سلامت روان و مهارت‌های شناختی خود را بهتر بشناسید؛ تمرکز کنید، تمرین کنید و با آگاهی بیشتری تصمیم بگیرید.</Text>
+            <Box sx={{ display: "flex", flexWrap: "wrap", gap: 2, mb: 4 }}><Button as={Link} href="/games" size="large" variant="primary" leadingVisual={PlayIcon}>شروع کنید</Button><Button as={Link} href="/mental-health-form" size="large" variant="default" trailingVisual={ArrowRightIcon}>ارزیابی رایگان</Button></Box>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 2, color: "fg.muted", fontSize: 0 }}><ShieldCheckIcon size={16} /> بدون نیاز به نصب، در چند دقیقه</Box>
+          </Box>
 
-              <div
-                className="
-                  relative
-                  aspect-[4/3]
-                  w-full
-                  overflow-hidden
-                  rounded-[24px]
-                  border
-                  border-sky-100
-                  bg-slate-100
-                  shadow-[0_20px_50px_rgba(14,116,144,0.16)]
-                  sm:rounded-[30px]
-                  lg:aspect-[5/4]
-                  lg:rounded-[34px]
-                "
-              >
-                <div className="absolute inset-0 bg-gradient-to-t from-slate-900/15 via-transparent to-white/10" />
+          <Box sx={{ position: "relative", minHeight: ["320px", "400px"], borderRadius: 4, overflow: "hidden", bg: "canvas.inset", border: "1px solid", borderColor: "border.default", boxShadow: "shadow.large" }}>
+            <Box sx={{ position: "absolute", inset: 0, backgroundImage: "linear-gradient(145deg, color-mix(in srgb, var(--bgColor-default) 5%, transparent), transparent), url('/pic/hero.png')", backgroundSize: "cover", backgroundPosition: "center" }} />
+            <Box sx={{ position: "absolute", inset: 0, background: "linear-gradient(0deg, rgba(0,0,0,.65), transparent 60%)" }} />
+            <Box sx={{ position: "absolute", bottom: 4, right: 4, left: 4, color: "fg.onEmphasis" }}><Text sx={{ display: "block", fontSize: 0, opacity: .8, mb: 1 }}>با همراهی دکتر سعید</Text><Heading as="h2" sx={{ color: "fg.onEmphasis", fontSize: [3, 4] }}>هر روز، یک قدم به ذهن آرام‌تر</Heading></Box>
+          </Box>
+        </Box>
 
-                <div
-                  className="absolute inset-0 bg-cover bg-center"
-                  style={{
-                    backgroundImage: "url('/pic/hero.png')",
-                    backgroundPosition: "center 20%",
-                  }}
-                />
+        <Box sx={{ mt: [6, 7], display: "flex", justifyContent: "space-between", alignItems: "end" }}><Box><Text sx={{ color: "accent.fg", fontSize: 0, fontWeight: "bold" }}>دسترسی سریع</Text><Heading as="h2" sx={{ fontSize: [4, 5], mt: 1 }}>از کجا شروع کنیم؟</Heading></Box><Button as={Link} href="/games" variant="invisible" trailingVisual={ChevronLeftIcon}>مشاهده همه</Button></Box>
+        <Box sx={{ display: "grid", gridTemplateColumns: ["repeat(2, 1fr)", "repeat(4, 1fr)"], gap: [2, 3], mt: 3 }}>
+          {quickLinks.map(({ href, title, text, icon: Icon, tone }) => <Link key={href} href={href} style={{ textDecoration: "none", color: "inherit" }}><Box sx={{ height: "100%", p: [3, 4], border: "1px solid", borderColor: "border.muted", borderRadius: 3, bg: "bg.default", transition: "transform .2s ease, box-shadow .2s ease", ":hover": { transform: "translateY(-3px)", boxShadow: "shadow.medium" } }}><Box sx={{ width: 36, height: 36, display: "grid", placeItems: "center", borderRadius: 2, bg: `${tone}.muted`, color: `${tone}.fg`, mb: 3 }}><Icon size={18} /></Box><Text sx={{ display: "block", fontWeight: "bold", fontSize: [1, 2] }}>{title}</Text><Text sx={{ display: "block", color: "fg.muted", fontSize: 0, mt: 1, lineHeight: "condensed" }}>{text}</Text><Box sx={{ mt: 3, color: "accent.fg" }}><ChevronLeftIcon size={16} /></Box></Box></Link>)}
+        </Box>
 
-                <div
-                  className="
-                    absolute right-3 top-3
-                    rounded-full
-                    border border-white/70
-                    bg-white/85
-                    px-3 py-1.5
-                    text-[10px]
-                    font-semibold
-                    text-slate-600
-                    shadow-sm
-                    backdrop-blur-md
-                    sm:right-4 sm:top-4
-                    sm:px-3.5 sm:py-2
-                    sm:text-xs
-                  "
-                >
-                  سلامت روان و ورزش
-                </div>
-              </div>
+        <Box sx={{ mt: [6, 7], p: [4, 5], borderRadius: 3, bg: "canvas.subtle", border: "1px solid", borderColor: "border.muted", display: "grid", gridTemplateColumns: ["1fr", "repeat(3, 1fr)"], gap: [4, 5] }}>
+          {features.map(([Icon, title, text]) => <Box key={title} sx={{ display: "flex", gap: 3, alignItems: "start" }}><Box sx={{ color: "success.fg", mt: 1 }}><Icon size={20} /></Box><Box><Text sx={{ display: "block", fontWeight: "bold", fontSize: 1 }}>{title}</Text><Text sx={{ display: "block", color: "fg.muted", fontSize: 0, mt: 1 }}>{text}</Text></Box></Box>)}
+        </Box>
 
-              <div
-                className="
-                  relative
-                  mx-auto
-                  -mt-8
-                  w-[calc(100%-32px)]
-                  sm:-mt-10
-                  sm:w-[calc(100%-64px)]
-                  lg:absolute
-                  lg:-bottom-5
-                  lg:-right-8
-                  lg:mx-0
-                  lg:mt-0
-                  lg:w-[280px]
-                  xl:-right-10
-                  xl:w-[310px]
-                "
-              >
-                <AnimatePresence mode="wait">
-                  <motion.div
-                    key={quoteIndex}
-                    initial={{ opacity: 0, y: 12 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -8 }}
-                    transition={{ duration: 0.45, ease: "easeOut" }}
-                    className="
-                      rounded-2xl
-                      border border-sky-100
-                      bg-white
-                      px-4 py-3.5
-                      shadow-[0_16px_40px_rgba(15,23,42,0.12)]
-                      sm:px-5 sm:py-4
-                    "
-                  >
-                    <p
-                      className="
-                        text-center
-                        text-xs
-                        font-medium
-                        leading-6
-                        text-slate-700
-                        sm:text-sm
-                        sm:leading-7
-                        lg:text-[13px]
-                        lg:leading-6
-                      "
-                    >
-                      {quotes[quoteIndex]}
-                    </p>
-                  </motion.div>
-                </AnimatePresence>
-              </div>
-            </div>
-          </motion.div>
-
-          <motion.div
-            dir="rtl"
-            initial={{ opacity: 0, y: 25 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{
-              delay: 0.15,
-              duration: 0.7,
-              ease: "easeOut",
-            }}
-            className="
-              flex
-              min-w-0
-              flex-col
-              justify-center
-              lg:order-2
-            "
-          >
-            <div className="mb-4 flex items-center justify-center gap-2 lg:justify-start">
-              <span className="h-px w-8 bg-sky-300" />
-
-              <span className="text-xs font-bold tracking-wide text-sky-600 sm:text-sm">
-                سلامت روان در ورزش و زندگی
-              </span>
-
-              <span className="h-px w-8 bg-sky-300 lg:hidden" />
-            </div>
-
-            <h1
-              className="
-                max-w-[700px]
-                text-center
-                text-3xl
-                font-bold
-                leading-[1.35]
-                tracking-tight
-                text-slate-900
-                sm:text-4xl
-                md:text-[42px]
-                lg:text-right
-                lg:text-[46px]
-                xl:text-[52px]
-                2xl:text-[56px]
-              "
-            >
-              ذهن قوی‌تر،
-              <br />
-              <span className="text-sky-600">عملکرد بهتر</span>
-            </h1>
-
-            <p
-              className="
-                mx-auto
-                mt-4
-                max-w-[620px]
-                text-center
-                text-sm
-                leading-7
-                text-slate-500
-                sm:mt-5
-                sm:text-base
-                sm:leading-8
-                lg:mx-0
-                lg:text-right
-              "
-            >
-              سلامت روان بخش مهمی از عملکرد، تصمیم‌گیری و کیفیت زندگی است.
-              با شناخت بهتر ذهن و تمرین مهارت‌های شناختی، مسیر عملکرد بهتر
-              را تجربه کنید.
-            </p>
-
-            <div className="mt-6 grid gap-2.5 sm:mt-7 sm:gap-3">
-              {benefits.map((benefit, index) => (
-                <div
-                  key={benefit}
-                  className="
-                    flex
-                    items-start
-                    gap-3
-                    rounded-2xl
-                    border border-slate-100
-                    bg-slate-50/70
-                    px-4 py-3
-                    text-right
-                    sm:px-5 sm:py-3.5
-                  "
-                >
-                  <span
-                    className="
-                      mt-1
-                      flex
-                      h-5 w-5
-                      shrink-0
-                      items-center
-                      justify-center
-                      rounded-full
-                      bg-sky-100
-                      text-[10px]
-                      font-bold
-                      text-sky-600
-                    "
-                  >
-                    {index + 1}
-                  </span>
-
-                  <p
-                    className="
-                      min-w-0
-                      text-xs
-                      font-medium
-                      leading-6
-                      text-slate-600
-                      sm:text-sm
-                      sm:leading-7
-                    "
-                  >
-                    {benefit}
-                  </p>
-                </div>
-              ))}
-            </div>
-
-            <div
-              className="
-                mt-7
-                grid
-                grid-cols-1
-                gap-3
-                sm:mt-8
-                sm:grid-cols-2
-                sm:gap-4
-                lg:max-w-[600px]
-              "
-            >
-              <Link
-                href="/mental-health-form"
-                className="
-                  inline-flex
-                  min-h-12
-                  items-center
-                  justify-center
-                  rounded-2xl
-                  bg-sky-600
-                  px-5
-                  py-3
-                  text-sm
-                  font-bold
-                  text-white
-                  shadow-[0_10px_25px_rgba(2,132,199,0.20)]
-                  transition
-                  hover:bg-sky-700
-                  hover:shadow-[0_14px_30px_rgba(2,132,199,0.25)]
-                  focus:outline-none
-                  focus:ring-2
-                  focus:ring-sky-400
-                  focus:ring-offset-2
-                  sm:min-h-[54px]
-                  sm:text-base
-                "
-              >
-                ورود کاربر / ثبت نام
-              </Link>
-
-              <Link
-                href="/games"
-                className="
-                  inline-flex
-                  min-h-12
-                  items-center
-                  justify-center
-                  rounded-2xl
-                  border
-                  border-slate-200
-                  bg-white
-                  px-5
-                  py-3
-                  text-sm
-                  font-bold
-                  text-slate-700
-                  shadow-sm
-                  transition
-                  hover:border-sky-200
-                  hover:bg-sky-50
-                  hover:text-sky-700
-                  focus:outline-none
-                  focus:ring-2
-                  focus:ring-sky-400
-                  focus:ring-offset-2
-                  sm:min-h-[54px]
-                  sm:text-base
-                "
-              >
-                شروع
-                <span className="mr-2">←</span>
-              </Link>
-            </div>
-
-            <div
-              className="
-                mt-5
-                flex
-                items-center
-                justify-center
-                gap-2
-                text-center
-                text-[10px]
-                text-slate-400
-                sm:text-xs
-                lg:justify-start
-                lg:text-right
-              "
-            >
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-
-              <span>
-                مسیری برای شناخت بهتر ذهن و تقویت عملکرد
-              </span>
-            </div>
-          </motion.div>
-        </div>
-      </section>
+        <Box sx={{ mt: [6, 7], display: "flex", justifyContent: "space-between", alignItems: "center", color: "fg.muted", fontSize: 0 }}><Box sx={{ display: "flex", alignItems: "center", gap: 2 }}><HomeIcon size={15} /> تکل؛ برای شناخت بهتر ذهن</Box><Box sx={{ display: ["none", "flex"], alignItems: "center", gap: 2 }}><SearchIcon size={15} /> طراحی شده برای زندگی واقعی</Box></Box>
+      </Box>
     </main>
   );
 }
-
