@@ -1432,14 +1432,7 @@ export default function VisualPage() {
                 </Chip>
               </div>)}
 
-            {best >=
-                CHECKPOINT_LEVEL && (<div className="mt-3">
-                <Chip bg={COLOR.mint} rotate={2}>
-                  شروع بعدی: مرحله{" "}
-                  {toFa(RESTART_LEVEL)}{" "}
-                  با ۳ کارت
-                </Chip>
-              </div>)}
+           
 
             <div className="mt-8 w-full max-w-xs space-y-3">
               <PrimaryButton onClick={startGame}>
