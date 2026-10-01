@@ -120,19 +120,19 @@ type MemoryMetrics = {
     score: number;
 };
 function calculateMemoryScore({ errors, replays, averageResponseMs, }: Pick<MemoryMetrics, "errors" | "replays" | "averageResponseMs">) {
-    const errorPenalty = Math.min(errors * 1.5, 12);
-    const replayPenalty = Math.min(replays * 0.75, 6);
-    let speedPenalty = 0;
-    if (averageResponseMs > 3000) {
-        speedPenalty = 8;
+    const baseScore = averageResponseMs <= 1800 ? 100 : 98;
+    let penalty = 0;
+
+    if (errors > 0) {
+        penalty = replays > 0
+            ? errors * 6
+            : errors * 4;
     }
-    else if (averageResponseMs > 1800) {
-        speedPenalty = 3 + ((averageResponseMs - 1800) / 1200) * 5;
+    else {
+        penalty = replays * 2;
     }
-    else if (averageResponseMs > 1000) {
-        speedPenalty = ((averageResponseMs - 1000) / 800) * 3;
-    }
-    return Math.max(80, Math.min(100, Math.round(100 - errorPenalty - replayPenalty - speedPenalty)));
+
+    return Math.max(0, Math.min(100, Math.round(baseScore - penalty)));
 }
 const formatSeconds = (ms: number) => `${(ms / 1000).toFixed(1).replace(".0", "")} ثانیه`;
 const toFa = (n: number | string) => String(n).replace(/\d/g, (d) => "۰۱۲۳۴۵۶۷۸۹"[Number(d)]);
@@ -510,14 +510,21 @@ function Game({ onOver, initialLevel, }: {
             !modal &&
             !finished.current) {
             commitInputSegment();
-            finished.current = true;
-            onOver(level - 1, false, buildMetrics());
+
+            const restartLevel = Math.max(1, level - 5);
+
+            setLevel(restartLevel);
+            setRound(makeRound(restartLevel));
+            setPicked([]);
+            setReplays(0);
+            setTimeMs(START_TIME_MS);
+            setPhase("memorize");
         }
     }, [
         timeMs,
         modal,
         level,
-        onOver,
+        commitInputSegment,
     ]);
     useEffect(() => {
         if (phase !== "memorize")
