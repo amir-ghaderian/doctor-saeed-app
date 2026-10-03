@@ -28,10 +28,10 @@ const PENALTY_MS = 3000;
 const REPLAY_COST_MS = 2000;
 
 /*
-  سه checkpoint اصلی بازی:
-  استیج ۱ → لول ۱ تا ۶
-  استیج ۲ → لول ۷ تا ۱۴
-  استیج ۳ → لول ۱۵ تا ۲۰
+  چک‌پوینت‌ها:
+  مرحله ۱ → ۱ تا ۶
+  مرحله ۷ → ۷ تا ۱۴
+  مرحله ۱۵ → ۱۵ تا ۲۰
 */
 const STAGE_STARTS = [1, 7, 15] as const;
 
@@ -344,8 +344,7 @@ function makeRound(level: number) {
       );
   }
 
-  let sequence: string[] =
-    [];
+  let sequence: string[] = [];
 
   for (
     let attempt = 0;
@@ -583,9 +582,7 @@ function TimerBar({
         >
           <span
             className="text-4xl leading-none tabular-nums"
-            style={
-              DISPLAY
-            }
+            style={DISPLAY}
           >
             {toFa(sec)}
           </span>
@@ -970,6 +967,14 @@ function Game({
   const [modal, setModal] =
     useState(false);
 
+  const [timeoutModal, setTimeoutModal] =
+    useState(false);
+
+  const [timeoutRestartLevel, setTimeoutRestartLevel] =
+    useState<number | null>(
+      null
+    );
+
   const [flash, setFlash] =
     useState<Flash | null>(
       null
@@ -1095,14 +1100,17 @@ function Game({
   };
 
   /*
-    تایمر همیشه فعال است.
-    حتی در:
-    memorize
-    input
-    levelup
-    modal
+    تایمر فقط وقتی بازی در حالت عادی است فعال می‌ماند.
+    هنگام پیام پایان زمان کاملاً متوقف می‌شود.
   */
   useEffect(() => {
+    if (
+      timeoutModal ||
+      exitingRef.current
+    ) {
+      return;
+    }
+
     const id =
       setInterval(() => {
         setTimeMs((t) =>
@@ -1115,16 +1123,17 @@ function Game({
 
     return () =>
       clearInterval(id);
-  }, []);
+  }, [timeoutModal]);
 
   /*
-    تمام شدن زمان:
-    بازگشت به ابتدای همان استیج
-    با 60 ثانیه‌ی جدید.
+    وقتی زمان تمام شد:
+    بازی دیگر خودکار ریست نمی‌شود.
+    ابتدا چک‌پوینت محاسبه و پیام شکست نمایش داده می‌شود.
   */
   useEffect(() => {
     if (
       timeMs > 0 ||
+      timeoutModal ||
       exitingRef.current
     ) {
       return;
@@ -1139,38 +1148,39 @@ function Game({
 
     setModal(false);
     setFlash(null);
-    setLevel(
+    setTimeoutRestartLevel(
       restartLevel
     );
-    setRound(
-      makeRound(
-        restartLevel
-      )
-    );
-    setPicked([]);
-    setReplays(0);
-    setTimeMs(
-      START_TIME_MS
-    );
-    setPhase(
-      "memorize"
+    setTimeoutModal(
+      true
     );
   }, [
     timeMs,
     level,
+    timeoutModal,
     commitInputSegment,
   ]);
 
+  /*
+    ورود به مرحله حفظ کردن.
+  */
   useEffect(() => {
     if (
-      phase !==
-      "memorize"
+      phase !== "memorize" ||
+      timeoutModal
     ) {
       return;
     }
 
     const id =
       setTimeout(() => {
+        if (
+          timeoutModal ||
+          exitingRef.current
+        ) {
+          return;
+        }
+
         if (
           inputStartedAtRef.current ===
           null
@@ -1189,6 +1199,7 @@ function Game({
     phase,
     round.memorizeMs,
     resetInputClock,
+    timeoutModal,
   ]);
 
   useEffect(() => {
@@ -1265,6 +1276,7 @@ function Game({
         clearTimeout(
           nextTimer.current
         );
+
         nextTimer.current =
           null;
       }
@@ -1274,12 +1286,60 @@ function Game({
       onExit();
     };
 
+  /*
+    ادامه بعد از تمام شدن تایمر:
+    از چک‌پوینت همان استیج با ۶۰ ثانیه تازه شروع می‌شود.
+  */
+  const handleTimeoutContinue =
+    () => {
+      if (
+        timeoutRestartLevel ===
+          null ||
+        exitingRef.current
+      ) {
+        return;
+      }
+
+      const restartLevel =
+        timeoutRestartLevel;
+
+      setTimeoutModal(false);
+      setTimeoutRestartLevel(
+        null
+      );
+
+      setModal(false);
+      setFlash(null);
+
+      setLevel(
+        restartLevel
+      );
+
+      setRound(
+        makeRound(
+          restartLevel
+        )
+      );
+
+      setPicked([]);
+      setReplays(0);
+
+      setTimeMs(
+        START_TIME_MS
+      );
+
+      setPhase(
+        "memorize"
+      );
+    };
+
   const handlePick = (
     sym: string
   ) => {
     if (
       phase !== "input" ||
       modal ||
+      timeoutModal ||
       exitingRef.current
     ) {
       return;
@@ -1415,6 +1475,7 @@ function Game({
   const canReplay =
     phase === "input" &&
     !modal &&
+    !timeoutModal &&
     !exitingRef.current &&
     timeMs >
       REPLAY_COST_MS;
@@ -1454,12 +1515,15 @@ function Game({
     () => {
       if (
         phase !==
-        "memorize"
+          "memorize" ||
+        timeoutModal ||
+        exitingRef.current
       ) {
         return;
       }
 
       resetInputClock();
+
       setPhase(
         "input"
       );
@@ -1652,7 +1716,8 @@ function Game({
               }
               disabled={
                 phase !==
-                "memorize"
+                "memorize" ||
+                timeoutModal
               }
               className={
                 sideBtn
@@ -1688,15 +1753,17 @@ function Game({
               disabled={
                 phase !==
                   "input" ||
-                modal
+                modal ||
+                timeoutModal
               }
             />
           </div>
         </div>
       </Panel>
 
+      {/* خطای انتخاب اشتباه */}
       <AnimatePresence>
-        {modal && (
+        {modal && !timeoutModal && (
           <motion.div
             key="wrong"
             role="alertdialog"
@@ -1780,6 +1847,200 @@ function Game({
                 همین مرحله
                 بچین
               </p>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* پایان زمان و بازگشت به چک‌پوینت */}
+      <AnimatePresence>
+        {timeoutModal && (
+          <motion.div
+            key="timeout"
+            role="alertdialog"
+            aria-label="زمان تمام شد"
+            initial={{
+              opacity: 0,
+            }}
+            animate={{
+              opacity: 1,
+            }}
+            exit={{
+              opacity: 0,
+            }}
+            className="fixed inset-0 z-[60] flex items-center justify-center px-5"
+            style={{
+              backgroundColor:
+                "rgba(11,16,32,0.82)",
+              backdropFilter:
+                "blur(8px)",
+              WebkitBackdropFilter:
+                "blur(8px)",
+            }}
+          >
+            <motion.div
+              initial={{
+                opacity: 0,
+                y: 30,
+                scale: 0.88,
+                rotate: -2,
+              }}
+              animate={{
+                opacity: 1,
+                y: 0,
+                scale: 1,
+                rotate: 0,
+              }}
+              exit={{
+                opacity: 0,
+                y: 20,
+                scale: 0.94,
+              }}
+              transition={{
+                duration: 0.4,
+              }}
+              className="w-full max-w-sm"
+            >
+              <Panel
+                className="overflow-hidden !p-0"
+                style={{
+                  backgroundColor:
+                    "#FFFDF5",
+                  boxShadow:
+                    "7px 7px 0 #1E1B3A",
+                }}
+              >
+                <div
+                  className="relative px-5 pb-6 pt-7 text-center"
+                  dir="rtl"
+                >
+                  <div
+                    className="absolute left-0 right-0 top-0 h-3"
+                    style={{
+                      background:
+                        `linear-gradient(90deg, ${COLOR.violet}, ${COLOR.pink}, ${COLOR.yellow})`,
+                    }}
+                  />
+
+                  <motion.div
+                    animate={{
+                      y: [0, -5, 0],
+                      rotate: [
+                        -3,
+                        3,
+                        -3,
+                      ],
+                    }}
+                    transition={{
+                      duration: 2.4,
+                      repeat:
+                        Infinity,
+                      ease:
+                        "easeInOut",
+                    }}
+                    className="mx-auto flex h-24 w-24 items-center justify-center rounded-full border-[4px] border-[#1E1B3A] bg-[#FFD43B] text-5xl shadow-[4px_4px_0_#1E1B3A]"
+                  >
+                    ⏰
+                  </motion.div>
+
+                  <div className="mt-6">
+                    <h2
+                      className="text-4xl leading-tight"
+                      style={
+                        DISPLAY
+                      }
+                    >
+                      این بار نشد! 😅
+                    </h2>
+
+                    <p
+                      className="mt-3 text-xl"
+                      style={{
+                        ...DISPLAY,
+                        color:
+                          COLOR.violet,
+                      }}
+                    >
+                      دوباره امتحان کن
+                    </p>
+
+                    <p className="mx-auto mt-4 max-w-[18rem] text-sm font-bold leading-7 text-slate-600">
+                      زمانت تموم شد،
+                      اما چیزی از
+                      دست نرفته.
+                      <br />
+                      از چک‌پوینت قبلی
+                      دوباره شروع
+                      می‌کنی و{" "}
+                      <b>
+                        {toFa(
+                          START_TIME_MS /
+                            1000
+                        )}{" "}
+                        ثانیه
+                      </b>{" "}
+                      زمان تازه داری.
+                    </p>
+
+                    {timeoutRestartLevel !==
+                      null && (
+                      <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+                        <Chip
+                          bg={
+                            COLOR.yellow
+                          }
+                          rotate={-2}
+                        >
+                          ↺ شروع از
+                          مرحله{" "}
+                          {toFa(
+                            timeoutRestartLevel
+                          )}
+                        </Chip>
+
+                        <Chip
+                          bg={
+                            COLOR.sky
+                          }
+                          rotate={2}
+                        >
+                          ⏱️{" "}
+                          {toFa(
+                            START_TIME_MS /
+                              1000
+                          )}{" "}
+                          ثانیه تازه
+                        </Chip>
+                      </div>
+                    )}
+
+                    <p className="mt-4 text-xs font-black text-slate-500">
+                      این بار با تمرکز
+                      بیشتر بزن بریم! 💪
+                    </p>
+
+                    <div className="mt-6">
+                      <PrimaryButton
+                        onClick={
+                          handleTimeoutContinue
+                        }
+                      >
+                        بزن بریم 🚀
+                      </PrimaryButton>
+                    </div>
+
+                    <div className="mt-3">
+                      <TextLink
+                        onClick={
+                          handleExit
+                        }
+                      >
+                        خروج از بازی
+                      </TextLink>
+                    </div>
+                  </div>
+                </div>
+              </Panel>
             </motion.div>
           </motion.div>
         )}
@@ -2772,9 +3033,6 @@ export default function VisualPage() {
   const [newRecord, setNewRecord] =
     useState(false);
 
-  const [won, setWon] =
-    useState(false);
-
   const [memoryMetrics, setMemoryMetrics] =
     useState<MemoryMetrics>({
       errors: 0,
@@ -2811,7 +3069,7 @@ export default function VisualPage() {
 
   /*
     بازی دوباره:
-    شروع از checkpoint
+    شروع از آخرین چک‌پوینت ذخیره‌شده
   */
   const startGame = () => {
     setGameStartLevel(
@@ -2829,7 +3087,7 @@ export default function VisualPage() {
 
   /*
     شروع از اول:
-    همیشه لول ۱
+    همیشه مرحله ۱
   */
   const startGameFromBeginning =
     () => {
@@ -2845,9 +3103,7 @@ export default function VisualPage() {
     };
 
   /*
-    خروج از بازی:
-    اجرای فعلی کاملاً بسته می‌شود.
-    رکورد ذخیره‌شده دست‌نخورده باقی می‌ماند.
+    خروج از بازی
   */
   const exitGame = () => {
     setScreen(
@@ -2886,10 +3142,6 @@ export default function VisualPage() {
 
         setNewRecord(
           record
-        );
-
-        setWon(
-          didWin
         );
 
         if (metrics) {
@@ -3080,9 +3332,7 @@ export default function VisualPage() {
           "over" && (
           <div className="flex flex-1 flex-col items-center justify-center py-6 text-center">
             <div className="flex h-24 w-24 items-center justify-center rounded-full border-[3px] border-[#1E1B3A] bg-[#FFD43B] text-5xl shadow-[4px_4px_0_#1E1B3A]">
-              {won
-                ? "🏆"
-                : "⏰"}
+              ⏰
             </div>
 
             <h1
@@ -3093,9 +3343,7 @@ export default function VisualPage() {
                   `3px 3px 0 ${INK}`,
               }}
             >
-              {won
-                ? "همه‌ی مرحله‌ها رو تموم کردی!"
-                : "وقت تموم شد!"}
+              وقت تموم شد!
             </h1>
 
             <Panel className="mt-6 w-full max-w-xs">
