@@ -58,7 +58,7 @@ const pillars = [
 const dailyQuestions = [
   "امروز چه چیزی یاد گرفتم؟",
   "امروز چه کاری را بهتر از دیروز انجام دادم؟",
-  "فردا برای رشد خودم چه یک قدمی برمی‌دارم؟",
+  "فردا برای رشد خودم چه قدمی برمی‌دارم؟",
 ] as const;
 
 const principles = [
@@ -875,43 +875,7 @@ export default function FrogGrowthPage() {
           </div>
         </section>
 
-        {/* =========================================================
-            SECTION 03 / PLACEHOLDER FOR FUTURE CONTENT
-        ========================================================== */}
-        <section
-          id="section-three"
-          className="relative mt-28 sm:mt-36"
-          aria-label="بخش سوم"
-        >
-          <div className="relative overflow-hidden rounded-[2.6rem] border border-dashed border-slate-300 bg-white/60 px-6 py-12 text-center backdrop-blur sm:px-10 sm:py-16">
-            <div className="absolute left-1/2 top-0 h-32 w-32 -translate-x-1/2 -translate-y-1/2 rounded-full bg-violet-200/50 blur-3xl" />
-
-            <div className="relative">
-              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl border border-violet-200 bg-violet-50 text-sm font-black text-violet-700">
-                ۰۳
-              </div>
-
-              <div className="mt-5 text-xs font-black tracking-[0.2em] text-violet-600">
-                NEXT SECTION
-              </div>
-
-              <h2
-                className="mt-3 text-3xl text-slate-950 sm:text-4xl"
-                style={{
-                  fontFamily:
-                    "var(--font-display), var(--font-body), Tahoma, sans-serif",
-                }}
-              >
-                بخش سوم در ادامه این مسیر اضافه می‌شود.
-              </h2>
-
-              <p className="mx-auto mt-3 max-w-2xl text-sm font-bold leading-7 text-slate-500">
-                ساختار صفحه برای محتوای بعدی آماده است و بدون شلوغ‌کردن
-                طراحی، می‌توانیم بخش بعدی را در همین زبان بصری ادامه بدهیم.
-              </p>
-            </div>
-          </div>
-        </section>
+    
 
         <footer className="mt-12 border-t border-slate-200 pt-6 text-center">
           <p className="text-xs font-bold leading-6 text-slate-400">
