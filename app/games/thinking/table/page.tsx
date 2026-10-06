@@ -983,12 +983,28 @@ export default function TablePage() {
             <button
               ref={findButtonRef}
               type="button"
-              
               onClick={submitWord}
               disabled={!currentWord}
-              className="h-11 flex-1 rounded-2xl bg-gradient-to-r from-indigo-500 to-purple-500 px-4 text-sm font-black text-white shadow-lg shadow-indigo-100 transition hover:shadow-xl disabled:opacity-30 sm:h-12 sm:px-6 sm:text-base"
+              className="flex h-11 flex-1 items-center justify-center rounded-2xl px-4 text-sm font-black shadow-lg shadow-indigo-100 transition sm:h-12 sm:px-6 sm:text-base"
+              style={{
+                appearance: "none",
+                WebkitAppearance: "none",
+                backgroundColor: currentWord ? "#6366f1" : "#cbd5e1",
+                color: "#ffffff",
+                opacity: currentWord ? 1 : 0.55,
+              }}
             >
-              پیدا کن
+              <span
+                style={{
+                  display: "block",
+                  color: "#ffffff",
+                  opacity: 1,
+                  lineHeight: 1,
+                  whiteSpace: "nowrap",
+                }}
+              >
+                پیدا کن
+              </span>
             </button>
 
             <button
