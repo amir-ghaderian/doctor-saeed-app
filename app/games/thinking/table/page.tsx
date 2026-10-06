@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { motion } from "framer-motion";
+import { useEffect, useRef, useState } from "react";
 import {
   getTableLevel,
   isBonusWord,
@@ -114,7 +113,7 @@ function LetterBackdrop() {
   return (
     <div
       aria-hidden="true"
-      className="pointer-events-none fixed inset-0 z-0 select-none overflow-hidden"
+      className="pointer-events-none absolute inset-0 z-0 select-none overflow-hidden"
     >
       {BACKGROUND_LETTERS.map((item, index) => (
         <span
@@ -468,13 +467,13 @@ export default function TablePage() {
       >
         <LetterBackdrop />
         <div className="relative z-10 text-center">
-          <motion.div
-            animate={{ scale: [1, 1.12, 1], rotate: [0, -6, 6, 0] }}
-            transition={{ duration: 1.4, repeat: Infinity }}
+          <div
+            
+            
             className="mb-3 text-5xl"
           >
             🧩
-          </motion.div>
+          </div>
           <p className="font-bold text-slate-600">در حال آماده‌سازی بازی...</p>
         </div>
       </main>
@@ -802,12 +801,13 @@ export default function TablePage() {
   return (
     <main
       dir="rtl"
-      className="relative min-h-[100dvh] overflow-x-hidden overflow-y-auto bg-gradient-to-b from-indigo-50 via-white to-purple-50 px-3 py-2 pb-4 text-slate-800 sm:min-h-screen sm:overflow-visible sm:px-6 sm:py-8"
+      className="relative isolate min-h-[100dvh] overflow-x-hidden overflow-y-auto bg-[#f5f7fb] px-3 py-2 pb-4 text-slate-800 sm:min-h-screen sm:overflow-visible sm:px-6 sm:py-8"
     >
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-0 bg-gradient-to-b from-indigo-50 via-white to-purple-50" />
       <LetterBackdrop />
 
       {/* هاله‌های نرم رنگی برای عمق بیشتر */}
-      <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
+      <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
         <div className="absolute -right-24 -top-24 h-72 w-72 rounded-full bg-indigo-200/30 blur-3xl" />
         <div className="absolute -left-24 bottom-0 h-72 w-72 rounded-full bg-purple-200/30 blur-3xl" />
       </div>
@@ -820,7 +820,7 @@ export default function TablePage() {
             onClick={() => {
               window.location.href = "/games";
             }}
-            className="flex items-center gap-1 rounded-2xl bg-white/90 px-3 py-2 text-xs font-bold text-slate-500 shadow-sm ring-1 ring-slate-200 backdrop-blur-sm transition hover:text-slate-800 sm:px-4 sm:py-2.5 sm:text-sm"
+            className="flex items-center gap-1 rounded-2xl bg-white/90 px-3 py-2 text-xs font-bold text-slate-500 shadow-sm ring-1 ring-slate-200 transition hover:text-slate-800 sm:px-4 sm:py-2.5 sm:text-sm"
           >
             <span>→</span>
             منوی اصلی
@@ -829,13 +829,13 @@ export default function TablePage() {
           <button
             type="button"
             onClick={() => setShowLevelMap(true)}
-            className="flex items-center gap-1.5 rounded-2xl bg-white/90 px-3 py-2 text-xs font-black text-indigo-600 shadow-sm ring-1 ring-indigo-100 backdrop-blur-sm transition hover:-translate-y-0.5 hover:shadow-md sm:gap-2 sm:px-4 sm:py-2.5 sm:text-sm"
+            className="flex items-center gap-1.5 rounded-2xl bg-white/90 px-3 py-2 text-xs font-black text-indigo-600 shadow-sm ring-1 ring-indigo-100 transition hover:-translate-y-0.5 hover:shadow-md sm:gap-2 sm:px-4 sm:py-2.5 sm:text-sm"
           >
             <span>🗺️</span>
             مراحل
           </button>
 
-          <div className="flex items-center gap-1.5 rounded-2xl bg-white/90 px-3 py-2 shadow-sm ring-1 ring-slate-200 backdrop-blur-sm sm:gap-2 sm:px-4 sm:py-2.5">
+          <div className="flex items-center gap-1.5 rounded-2xl bg-white/90 px-3 py-2 shadow-sm ring-1 ring-slate-200 sm:gap-2 sm:px-4 sm:py-2.5">
             <span className="text-lg">🪙</span>
             <span className="font-black text-slate-700">{coins}</span>
           </div>
@@ -843,13 +843,13 @@ export default function TablePage() {
 
         {/* TITLE */}
         <div className="mb-2 text-center sm:mb-5">
-          <motion.div
-            animate={{ y: [0, -4, 0] }}
-            transition={{ duration: 2.6, repeat: Infinity, ease: "easeInOut" }}
+          <div
+            
+            
             className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-[18px] bg-gradient-to-br from-indigo-500 to-purple-500 text-2xl shadow-lg shadow-indigo-200 sm:mb-3 sm:h-16 sm:w-16 sm:rounded-[22px] sm:text-3xl"
           >
             🧩
-          </motion.div>
+          </div>
 
           <p className="text-xs font-bold text-indigo-500">کَلَمَک</p>
 
@@ -865,7 +865,7 @@ export default function TablePage() {
         {/* WORDS */}
         <div
           ref={wordsRef}
-          className="mb-2 rounded-[28px] bg-white/90 p-3 shadow-md ring-1 ring-slate-200 backdrop-blur-sm sm:mb-5 sm:rounded-[32px] sm:p-6"
+          className="mb-2 rounded-[28px] bg-white/90 p-3 shadow-md ring-1 ring-slate-200 sm:mb-5 sm:rounded-[32px] sm:p-6"
         >
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             {level.words.map((word) => {
@@ -874,9 +874,9 @@ export default function TablePage() {
               );
 
               return (
-                <motion.div
+                <div
                   key={word}
-                  animate={found ? { scale: [1, 1.05, 1] } : {}}
+                  
                   className={`flex min-h-[44px] items-center justify-center rounded-2xl border-2 px-2 text-center text-sm font-black transition-all sm:min-h-[58px] sm:px-3 sm:text-base ${
                     found
                       ? "border-emerald-200 bg-emerald-50 text-emerald-600"
@@ -884,21 +884,21 @@ export default function TablePage() {
                   }`}
                 >
                   {found ? word : word.split("").map(() => "•").join(" ")}
-                </motion.div>
+                </div>
               );
             })}
           </div>
 
           <div className="mt-2 flex min-h-[48px] items-center justify-center rounded-2xl border-2 border-dashed border-indigo-100 bg-indigo-50 px-4">
             {currentWord ? (
-              <motion.span
+              <span
                 key={currentWord}
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
+                
+                
                 className="text-xl font-black tracking-[0.2em] text-indigo-600 sm:text-2xl sm:tracking-[0.25em]"
               >
                 {currentWord}
-              </motion.span>
+              </span>
             ) : (
               <span className="text-sm font-bold text-slate-400">کلمه را بساز</span>
             )}
@@ -906,9 +906,9 @@ export default function TablePage() {
 
           <div className="mt-1 flex min-h-6 items-center justify-center sm:mt-3 sm:min-h-8">
             {message && (
-              <motion.div
-                initial={{ opacity: 0, y: 5 }}
-                animate={{ opacity: 1, y: [0, 0, 0], x: [0, -4, 4, -3, 3, 0] }}
+              <div
+                
+                
                 className={`rounded-full px-3 py-1.5 text-[11px] font-bold sm:px-4 sm:py-2 sm:text-xs ${
                   message.includes("قبلاً")
                     ? "bg-amber-50 text-amber-700"
@@ -920,7 +920,7 @@ export default function TablePage() {
                 }`}
               >
                 {message}
-              </motion.div>
+              </div>
             )}
           </div>
         </div>
@@ -928,7 +928,7 @@ export default function TablePage() {
         {/* LETTERS */}
         <div
           ref={lettersRef}
-          className="rounded-[30px] bg-white/90 p-3 shadow-lg ring-1 ring-slate-200 backdrop-blur-sm sm:rounded-[36px] sm:p-7"
+          className="relative z-20 rounded-[30px] bg-white p-3 shadow-lg ring-1 ring-slate-200 sm:rounded-[36px] sm:p-7"
         >
           <div className="mb-2 text-center sm:mb-6">
             <p className="text-xs font-bold text-slate-400">حروف مرحله</p>
@@ -941,30 +941,36 @@ export default function TablePage() {
               const helped = selected && helpedPositions.includes(selectedPosition);
 
               return (
-                <motion.button
+                <button
                   key={`${letter}-${originalIndex}`}
                   type="button"
-                  whileTap={{ scale: 0.88 }}
-                  whileHover={{ y: -3 }}
                   onClick={() => handleLetterClick(letter, originalIndex)}
-                  className={`flex h-[52px] w-[52px] items-center justify-center rounded-full border-[4px] text-xl font-black text-white shadow-md transition-all sm:h-[72px] sm:w-[72px] sm:border-[5px] sm:text-3xl ${
+                  className={`relative isolate flex h-[52px] w-[52px] items-center justify-center rounded-full border-[4px] text-xl font-black text-white shadow-md transition-all sm:h-[72px] sm:w-[72px] sm:border-[5px] sm:text-3xl ${
                     helped
-                      ? "border-amber-200 bg-gradient-to-br from-amber-400 to-yellow-500 ring-4 ring-amber-100"
+                      ? "border-amber-200 ring-4 ring-amber-100"
                       : selected
-                        ? "border-emerald-300 bg-gradient-to-br from-emerald-400 to-teal-500"
-                        : "border-indigo-100 bg-gradient-to-br from-indigo-500 to-purple-500"
+                        ? "border-emerald-300"
+                        : "border-indigo-100"
                   }`}
+                  style={{
+                    backgroundColor: helped
+                      ? "#fbbf24"
+                      : selected
+                        ? "#34d399"
+                        : "#6366f1",
+                    color: "#ffffff",
+                  }}
                 >
-                  {letter}
-                </motion.button>
+                  <span className="relative z-10 block leading-none text-white">{letter}</span>
+                </button>
               );
             })}
           </div>
 
           <div className="flex items-center justify-center gap-2 sm:gap-3">
-            <motion.button
+            <button
               type="button"
-              whileTap={{ scale: 0.94 }}
+              
               onClick={removeLastLetter}
               disabled={!selectedLetters.some((_, index) => !helpedPositions.includes(index))}
               className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-lg font-black text-slate-500 transition hover:bg-slate-200 disabled:opacity-30 sm:h-12 sm:w-12 sm:text-xl"
@@ -972,22 +978,22 @@ export default function TablePage() {
               title="حذف آخرین حرف"
             >
               ⌫
-            </motion.button>
+            </button>
 
-            <motion.button
+            <button
               ref={findButtonRef}
               type="button"
-              whileTap={{ scale: 0.96 }}
+              
               onClick={submitWord}
               disabled={!currentWord}
               className="h-11 flex-1 rounded-2xl bg-gradient-to-r from-indigo-500 to-purple-500 px-4 text-sm font-black text-white shadow-lg shadow-indigo-100 transition hover:shadow-xl disabled:opacity-30 sm:h-12 sm:px-6 sm:text-base"
             >
               پیدا کن
-            </motion.button>
+            </button>
 
-            <motion.button
+            <button
               type="button"
-              whileTap={{ scale: 0.94 }}
+              
               onClick={clearWord}
               disabled={!selectedLetters.length}
               className="h-11 w-11 rounded-2xl bg-slate-100 text-[11px] font-black text-slate-500 transition hover:bg-slate-200 disabled:opacity-30 sm:h-12 sm:w-12 sm:text-xs"
@@ -995,13 +1001,13 @@ export default function TablePage() {
               title="پاک کردن کلمه"
             >
               پاک
-            </motion.button>
+            </button>
           </div>
 
           <div className="mt-3 flex w-full items-center gap-2 sm:mt-4 sm:gap-3">
-            <motion.button
+            <button
               type="button"
-              whileTap={{ scale: 0.96 }}
+              
               onClick={shuffleLetters}
               disabled={displayLetters.length < 2}
               className="flex h-11 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-2xl bg-gradient-to-r from-sky-500 to-cyan-500 px-2 text-xs font-black text-white shadow-lg transition hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-40 sm:h-12 sm:gap-2 sm:text-sm"
@@ -1010,7 +1016,7 @@ export default function TablePage() {
             >
               <span className="text-base sm:text-lg">🔀</span>
               <span>جابجایی</span>
-            </motion.button>
+            </button>
 
             <div
               ref={coinJarRef}
@@ -1028,9 +1034,9 @@ export default function TablePage() {
               </div>
             </div>
 
-            <motion.button
+            <button
               type="button"
-              whileTap={{ scale: 0.96 }}
+              
               onClick={useHelp}
               disabled={coins < 5 || foundWords.length === level.words.length}
               className="flex h-11 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-2xl bg-gradient-to-r from-amber-400 to-yellow-500 px-2 text-xs font-black text-white shadow-lg transition hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-40 sm:h-12 sm:gap-2 sm:text-sm"
@@ -1040,7 +1046,7 @@ export default function TablePage() {
               <span className="rounded-full bg-white/20 px-1.5 py-0.5 text-[10px] sm:px-2 sm:text-xs">
                 ۵ 🪙
               </span>
-            </motion.button>
+            </button>
           </div>
         </div>
       </div>
@@ -1052,12 +1058,12 @@ export default function TablePage() {
       {showLevelMap && (
         <div
           dir="rtl"
-          className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/45 px-3 py-4 backdrop-blur-[4px]"
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/45 px-3 py-4"
         >
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 18 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+          <div
+            
+            
+            
             className="relative flex max-h-[88vh] w-full max-w-2xl flex-col overflow-hidden rounded-[32px] border border-white/70 bg-[#f7faf6] shadow-[0_30px_90px_rgba(15,23,42,0.30)]"
           >
             {/* HEADER */}
@@ -1193,15 +1199,11 @@ export default function TablePage() {
                         const totalLevelCoins = levelReward + bonusCoins;
 
                         return (
-                          <motion.div
+                          <div
                             key={levelNumber}
-                            initial={{ opacity: 0, scale: 0.8, y: 10 }}
-                            animate={{ opacity: 1, scale: 1, y: 0 }}
-                            transition={{
-                              delay: Math.min(index * 0.025, 0.4),
-                              duration: 0.35,
-                              ease: [0.22, 1, 0.36, 1],
-                            }}
+                            
+                            
+                            
                             className="relative flex items-center justify-center"
                           >
                             <button
@@ -1231,9 +1233,9 @@ export default function TablePage() {
                               )}
 
                               {active && (
-                                <motion.span
-                                  animate={{ scale: [1, 1.15, 1], opacity: [0.35, 0.1, 0.35] }}
-                                  transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
+                                <span
+                                  
+                                  
                                   className="absolute -inset-2 -z-10 rounded-full bg-indigo-400"
                                 />
                               )}
@@ -1250,16 +1252,16 @@ export default function TablePage() {
                             </button>
 
                             {active && (
-                              <motion.div
-                                initial={{ opacity: 0, y: 4 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ duration: 0.25 }}
+                              <div
+                                
+                                
+                                
                                 className="absolute -bottom-1 left-1/2 -translate-x-1/2 translate-y-full whitespace-nowrap rounded-full bg-indigo-600 px-2 py-1 text-[8px] font-black text-white shadow-md sm:text-[9px]"
                               >
                                 اینجایی
-                              </motion.div>
+                              </div>
                             )}
-                          </motion.div>
+                          </div>
                         );
                       })}
                     </div>
@@ -1296,7 +1298,7 @@ export default function TablePage() {
                 </button>
               </div>
             </div>
-          </motion.div>
+          </div>
         </div>
       )}
 
@@ -1306,7 +1308,7 @@ export default function TablePage() {
 
       {showTutorial && tutorialTarget && (
         <div dir="rtl" className="pointer-events-none fixed inset-0 z-[100]">
-          <div className="absolute inset-0 bg-slate-950/35 backdrop-blur-[1px]" />
+          <div className="absolute inset-0 bg-slate-950/35" />
 
           <button
             type="button"
@@ -1316,11 +1318,11 @@ export default function TablePage() {
             رد کردن
           </button>
 
-          <motion.div
+          <div
             key={`target-${tutorialStep}`}
-            initial={{ opacity: 0, scale: 0.96 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.3 }}
+            
+            
+            
             className="absolute rounded-[28px] border-4 border-indigo-400 bg-indigo-400/10 shadow-[0_0_0_5px_rgba(99,102,241,0.18),0_0_35px_rgba(99,102,241,0.35)]"
             style={{
               top: tutorialTarget.top - 7,
@@ -1330,26 +1332,23 @@ export default function TablePage() {
             }}
           />
 
-          <motion.div
+          <div
             key={`arrow-${tutorialStep}`}
-            initial={{ opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: [0, 7, 0] }}
-            transition={{
-              opacity: { duration: 0.25 },
-              y: { duration: 1, repeat: Infinity, ease: "easeInOut" },
-            }}
+            
+            
+            
             className="absolute z-[102] -translate-x-1/2 text-5xl font-black leading-none text-indigo-600 drop-shadow-lg"
             style={{ top: arrowTop, left: arrowLeft }}
           >
             ↓
-          </motion.div>
+          </div>
 
-          <motion.div
+          <div
             ref={tutorialCardRef}
             key={`card-${tutorialStep}`}
-            initial={{ opacity: 0, y: 15, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            transition={{ duration: 0.35, ease: "easeOut" }}
+            
+            
+            
             className="absolute z-[103] w-[calc(100vw-28px)] max-w-[390px] rounded-[30px] border border-white/80 bg-white p-5 text-center shadow-[0_20px_70px_rgba(15,23,42,0.25)]"
             style={{
               top: tutorialCard?.top ?? 20,
@@ -1357,12 +1356,12 @@ export default function TablePage() {
             }}
           >
             <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-50 text-3xl shadow-sm">
-              <motion.span
-                animate={{ scale: [1, 1.12, 1], y: [0, -2, 0] }}
-                transition={{ duration: 1.2, repeat: Infinity }}
+              <span
+                
+                
               >
                 {tutorialData.icon}
-              </motion.span>
+              </span>
             </div>
 
             <div className="mb-2 inline-flex rounded-full bg-indigo-50 px-3 py-1 text-[11px] font-black text-indigo-600">
@@ -1389,7 +1388,7 @@ export default function TablePage() {
                 />
               ))}
             </div>
-          </motion.div>
+          </div>
         </div>
       )}
 
@@ -1402,18 +1401,18 @@ export default function TablePage() {
           className="fixed inset-0 z-50 flex items-center justify-center px-5"
           style={{ backgroundColor: "rgba(15,23,42,0.50)" }}
         >
-          <motion.div
-            initial={{ opacity: 0, scale: 0.8, y: 30 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
+          <div
+            
+            
             className="w-full max-w-sm rounded-[36px] bg-white p-7 text-center shadow-2xl"
           >
-            <motion.div
-              animate={{ rotate: [0, -8, 8, -5, 5, 0], scale: [1, 1.15, 1] }}
-              transition={{ duration: 0.8 }}
+            <div
+              
+              
               className="text-7xl"
             >
               🎉
-            </motion.div>
+            </div>
 
             <p className="mt-5 text-sm font-bold text-emerald-500">
               مرحله {currentLevel} کامل شد
@@ -1474,7 +1473,7 @@ export default function TablePage() {
             >
               🗺️ دیدن مسیر مراحل
             </button>
-          </motion.div>
+          </div>
         </div>
       )}
     </main>
