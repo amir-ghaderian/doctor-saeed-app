@@ -31,6 +31,7 @@ const LEVELS: { cards: number; unique: number; memorize: number }[] = [
 
 const ALLOW_CONSECUTIVE_REPEAT = false;
 const BEST_KEY = "tasvirak-best-level";
+const MEMORY_KEY = "tasvirak-memory-metrics"; // نتیجهٔ کامل ۲۰ مرحلهٔ تصویرک (برای ورود مستقیم به ستاره‌ها)
 
 const ANIMAL_SYMBOLS = ["🐮", "🐑", "🐰", "🐔", "🐴", "🐷", "🦊", "🐸", "🐵", "🐼"];
 const VEHICLE_SYMBOLS = ["🚗", "🚕", "🚌", "🏎️", "🚲", "🚁", "✈️", "🚀"];
@@ -49,7 +50,7 @@ const DISPLAY: React.CSSProperties = { fontFamily: "var(--font-display), var(--f
 const FOCUS = "focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-white";
 const BORDER = "border-[3px] border-[#1E1B3A]";
 
-type Screen = "menu" | "tutorial" | "game" | "over" | "nextTest" | "comingSoon";
+type Screen = "menu" | "tutorial" | "game" | "over" | "nextTest" | "stars" | "final";
 type Phase = "memorize" | "input" | "levelup";
 type Flash = { id: number; kind: "good" | "bad"; amount: number };
 type MemoryMetrics = {
@@ -63,7 +64,7 @@ function calculateMemoryScore({ errors, replays, averageResponseMs }: Pick<Memor
   return Math.max(0, Math.min(100, Math.round(base - penalty)));
 }
 
-const formatSeconds = (ms: number) => `${(ms / 1000).toFixed(1).replace(".0", "")} ثانیه`;
+const formatSeconds = (ms: number) => `${toFa((ms / 1000).toFixed(1).replace(".0", "")).replace(".", "٫")} ثانیه`;
 const toFa = (n: number | string) => String(n).replace(/\d/g, (d) => "۰۱۲۳۴۵۶۷۸۹"[Number(d)]);
 
 function shuffle<T>(arr: T[]): T[] {
@@ -967,33 +968,449 @@ function DoctorNextTest({ metrics, onStartStars, onBack }: { metrics: MemoryMetr
   );
 }
 
-function StarsComingSoon({ onBack }: { onBack: () => void }) {
+/* ---------- بازی ستاره‌ها ---------- */
+
+const STARS_ROUNDS = 10;
+const STARS_SHOW_MS = 3000;
+const STARS_FEEDBACK_MS = 1200;
+const STARS_BONUS_MS = 5000;
+const STARS_PENALTY_MS = 5000;
+// بازهٔ تعداد ستاره‌ها در هر مرحله (کم‌کم سخت‌تر می‌شود)
+const STARS_RANGES: [number, number][] = [[2, 4], [3, 5], [4, 6], [5, 7], [5, 8], [6, 9], [7, 10], [8, 11], [9, 12], [10, 14]];
+const STAR_SHAPE = "50,4 61.8,36.5 96.5,38 69.4,59.5 78.8,93 50,74 21.2,93 30.6,59.5 3.5,38 38.2,36.5";
+const STRIPES = `repeating-linear-gradient(45deg, ${COLOR.yellow} 0 7px, #FFC21A 7px 14px)`;
+
+type StarsMetrics = {
+  correct: number; wrong: number; answered: number;
+  averageResponseMs: number; score: number; timedOut: boolean;
+};
+type StarsPhase = "intro" | "show" | "answer" | "feedback";
+type StarItem = { x: number; y: number; s: number; r: number };
+
+/*
+  امتیاز هر مرحله (حداکثر ۱۰ → مجموع ۱۰۰):
+  - جواب درست: ۶ امتیاز دقت + تا ۴ امتیاز سرعت (≤۱.۵ث: ۴ | ≤۲.۵ث: ۳ | ≤۴ث: ۲ | ≤۶ث: ۱)
+  - جواب غلط ولی فقط یکی کم/زیاد: ۲ امتیاز (تقریب خوب)
+  - غلط‌تر یا بی‌پاسخ (تمام شدن زمان): صفر
+*/
+function starPoints(ok: boolean, diff: number, ms: number) {
+  if (ok) return 6 + (ms <= 1500 ? 4 : ms <= 2500 ? 3 : ms <= 4000 ? 2 : ms <= 6000 ? 1 : 0);
+  return Math.abs(diff) === 1 ? 2 : 0;
+}
+
+function makeStarOptions(correct: number) {
+  const set = new Set<number>([correct]);
+  for (const n of shuffle([-2, -1, 1, 2, 3, -3].map((d) => correct + d).filter((n) => n >= 1))) {
+    if (set.size >= 4) break;
+    set.add(n);
+  }
+  for (let n = correct + 4; set.size < 4; n++) set.add(n);
+  return [...set].sort((a, b) => a - b);
+}
+
+function makeStarsRound(i: number) {
+  const [lo, hi] = STARS_RANGES[i];
+  const count = lo + Math.floor(Math.random() * (hi - lo + 1));
+  const W = 100, H = 75; // مساحت ۴:۳ بر حسب «درصد عرض»
+  const dense = count > 10;
+  let gap = dense ? 14 : 17;
+  const stars: StarItem[] = [];
+
+  for (let k = 0; k < count; k++) {
+    for (let tries = 1; ; tries++) {
+      if (tries % 150 === 0) gap *= 0.9; // اگر جا پیدا نشد، فاصلهٔ حداقل کم‌کم کمتر می‌شود
+      const s = (dense ? 9 : 11) + Math.random() * 3;
+      const x = s / 2 + 2 + Math.random() * (W - s - 4);
+      const y = s / 2 + 2 + Math.random() * (H - s - 4);
+      if (stars.every((o) => Math.hypot(o.x - x, o.y - y) >= gap)) {
+        stars.push({ x, y, s, r: Math.round(Math.random() * 40 - 20) });
+        break;
+      }
+    }
+  }
+
+  return { count, stars, options: makeStarOptions(count) };
+}
+
+function StarsGame({ onFinish, onExit }: { onFinish: (m: StarsMetrics) => void; onExit: () => void }) {
+  const [idx, setIdx] = useState(0);
+  const [round, setRound] = useState(() => makeStarsRound(0));
+  const [phase, setPhase] = useState<StarsPhase>("intro");
+  const [chosen, setChosen] = useState<number | null>(null);
+  const [flash, setFlash] = useState<Flash | null>(null);
+  const [timeUp, setTimeUp] = useState(false);
+
+  const timeRef = useRef(START_TIME_MS);
+  const pausedRef = useRef(true); // تا زدن «شروع» تایمر متوقف است
+  const flashId = useRef(0);
+  const nextTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const doneRef = useRef(false);
+  const answerStartRef = useRef(0);
+  const statsRef = useRef({ correct: 0, wrong: 0, answered: 0, totalMs: 0, points: 0 });
+  const finishRef = useRef(onFinish);
+  finishRef.current = onFinish;
+
+  const finish = useCallback((timedOut: boolean) => {
+    if (doneRef.current) return;
+    doneRef.current = true;
+    if (nextTimer.current) clearTimeout(nextTimer.current);
+    const s = statsRef.current;
+    finishRef.current({
+      correct: s.correct,
+      wrong: s.wrong,
+      answered: s.answered,
+      averageResponseMs: s.answered ? s.totalMs / s.answered : 0,
+      score: Math.min(100, s.points),
+      timedOut: timedOut && s.answered < STARS_ROUNDS,
+    });
+  }, []);
+
+  // تایمر اصلی (بدون setState؛ فقط ref را کم می‌کند)
+  useEffect(() => {
+    let last = Date.now();
+    const id = setInterval(() => {
+      const now = Date.now();
+      const dt = now - last;
+      last = now;
+      if (pausedRef.current || doneRef.current) return;
+      timeRef.current = Math.max(0, timeRef.current - dt);
+      if (timeRef.current <= 0) {
+        pausedRef.current = true;
+        setTimeUp(true);
+      }
+    }, 100);
+    return () => clearInterval(id);
+  }, []);
+
+  // پایان زمان: مکث کوتاه و رفتن به کارنامه
+  useEffect(() => {
+    if (!timeUp || doneRef.current) return;
+    if (nextTimer.current) clearTimeout(nextTimer.current);
+    setFlash(null);
+    const id = setTimeout(() => finish(true), 1600);
+    return () => clearTimeout(id);
+  }, [timeUp, finish]);
+
+  // پایان نمایش ستاره‌ها (۳ ثانیه) → نمایش گزینه‌ها
+  useEffect(() => {
+    if (phase !== "show" || timeUp) return;
+    const id = setTimeout(() => {
+      answerStartRef.current = Date.now();
+      setPhase("answer");
+    }, STARS_SHOW_MS);
+    return () => clearTimeout(id);
+  }, [phase, timeUp, idx]);
+
+  useEffect(() => {
+    if (!flash) return;
+    const id = setTimeout(() => setFlash(null), 1200);
+    return () => clearTimeout(id);
+  }, [flash]);
+
+  useEffect(() => () => {
+    if (nextTimer.current) clearTimeout(nextTimer.current);
+  }, []);
+
+  const handleStart = () => {
+    pausedRef.current = false;
+    setPhase("show");
+  };
+
+  const handleExit = () => {
+    if (doneRef.current) return;
+    doneRef.current = true;
+    if (nextTimer.current) clearTimeout(nextTimer.current);
+    onExit();
+  };
+
+  const handlePick = (n: number) => {
+    if (phase !== "answer" || timeUp || doneRef.current) return;
+
+    const ms = Math.max(0, Math.min(10000, Date.now() - answerStartRef.current));
+    const ok = n === round.count;
+    const s = statsRef.current;
+    s.answered += 1;
+    s.totalMs += ms;
+    s.points += starPoints(ok, n - round.count, ms);
+
+    if (ok) {
+      s.correct += 1;
+      timeRef.current += STARS_BONUS_MS;
+    } else {
+      s.wrong += 1;
+      timeRef.current = Math.max(0, timeRef.current - STARS_PENALTY_MS);
+    }
+
+    flashId.current += 1;
+    setFlash({ id: flashId.current, kind: ok ? "good" : "bad", amount: 5 });
+    setChosen(n);
+    setPhase("feedback");
+
+    nextTimer.current = setTimeout(() => {
+      if (doneRef.current) return;
+      if (idx >= STARS_ROUNDS - 1) {
+        finish(false);
+        return;
+      }
+      const next = idx + 1;
+      setIdx(next);
+      setRound(makeStarsRound(next));
+      setChosen(null);
+      setPhase("show");
+    }, STARS_FEEDBACK_MS);
+  };
+
+  /* ----- صفحهٔ قوانین ----- */
+  if (phase === "intro") {
+    return (
+      <div className="flex flex-1 select-none flex-col gap-5 py-4">
+        <div className="flex flex-1 flex-col justify-center gap-5">
+          <div className="text-center">
+            <div className={`mx-auto flex h-24 w-24 items-center justify-center rounded-full ${BORDER} bg-[#FFD43B] text-5xl shadow-[4px_4px_0_#1E1B3A]`} aria-hidden>⭐</div>
+            <h1 className="mt-4 text-5xl leading-none text-white" style={{ ...DISPLAY, textShadow: `3px 3px 0 ${INK}` }}>بازی ستاره‌ها</h1>
+          </div>
+
+          <Panel>
+            <h2 className="text-2xl" style={DISPLAY}>قانون‌های بازی</h2>
+            <ul className="mt-4 space-y-3">
+              <RuleRow icon="⭐" bg={COLOR.yellow}>{toFa(STARS_ROUNDS)} مرحله داری؛ هر مرحله ستاره‌ها فقط {toFa(STARS_SHOW_MS / 1000)} ثانیه نشون داده می‌شن. سریع بشمارشون!</RuleRow>
+              <RuleRow icon="🔢" bg={COLOR.pink}>بعد {toFa(4)} عدد میاد؛ تعداد درست ستاره‌ها رو انتخاب کن.</RuleRow>
+              <RuleRow icon="✅" bg={COLOR.mint}>درست بزنی {toFa(STARS_BONUS_MS / 1000)} ثانیه اضافه می‌شه.</RuleRow>
+              <RuleRow icon="❌" bg={COLOR.red}>اشتباه بزنی {toFa(STARS_PENALTY_MS / 1000)} ثانیه کم می‌شه و می‌ری مرحلهٔ بعد.</RuleRow>
+              <RuleRow icon="⏱️" bg={COLOR.sky}>کل بازی {toFa(START_TIME_MS / 1000)} ثانیه وقت داری و امتیاز به سرعت و دقتت بستگی داره.</RuleRow>
+            </ul>
+          </Panel>
+        </div>
+
+        <div className="space-y-3 pb-1">
+          <PrimaryButton onClick={handleStart}>شروع بازی</PrimaryButton>
+          <div className="text-center"><TextLink onClick={handleExit}>← بازگشت</TextLink></div>
+        </div>
+      </div>
+    );
+  }
+
+  /* ----- خود بازی ----- */
+  const showStars = phase === "show" || phase === "feedback";
+  const faceDown = phase === "show";
+  const ok = chosen === round.count;
+
+  const statusText =
+    phase === "show" ? "ستاره‌ها رو بشمار! 👀"
+    : phase === "answer" ? "چند تا ستاره بود؟"
+    : ok ? "آفرین! درست بود ✔"
+    : `اشتباه شد؛ ${toFa(round.count)} تا بود`;
+
+  const statusColor = phase === "feedback" ? (ok ? COLOR.mint : COLOR.red) : "#ffffff";
+  const panelBg = phase === "feedback" ? (ok ? "#D1FAE5" : "#FFE4E6") : "#ffffff";
+
+  return (
+    <div className="flex flex-1 select-none flex-col gap-4">
+      <div>
+        <div className="flex items-center gap-2">
+          <div className="min-w-0 flex-1"><LiveTimer timeRef={timeRef} flash={flash} /></div>
+          <button
+            type="button"
+            onClick={handleExit}
+            className={`touch-manipulation flex h-14 shrink-0 items-center justify-center rounded-2xl ${BORDER} bg-[#FACC15] px-3 text-sm font-black text-[#111827] shadow-[3px_3px_0_#1E1B3A] transition active:translate-y-1 active:shadow-[1px_1px_0_#1E1B3A] ${FOCUS}`}
+            aria-label="خروج از بازی"
+          >
+            خروج
+          </button>
+        </div>
+
+        <div className="mt-4 flex items-center justify-center gap-2">
+          <Chip bg={COLOR.yellow} rotate={-2}>مرحله {toFa(idx + 1)} از {toFa(STARS_ROUNDS)}</Chip>
+          <Chip bg="#ffffff" rotate={2}>⭐ بازی ستاره‌ها</Chip>
+        </div>
+      </div>
+
+      <div className="flex flex-1 flex-col justify-center gap-3">
+        <p className="text-center text-xl" style={{ ...DISPLAY, color: statusColor }} aria-live="polite">{statusText}</p>
+
+        <Panel className="!p-3 transition-colors" style={{ backgroundColor: panelBg }}>
+          <div
+            className="relative aspect-[4/3] w-full overflow-hidden rounded-2xl border-2 border-[#1E1B3A]"
+            style={{ background: showStars ? "#ffffff" : STRIPES }}
+          >
+            {showStars ? (
+              round.stars.map((st, i) => (
+                <div
+                  key={`${idx}-${i}`}
+                  className="absolute"
+                  style={{ left: `${st.x}%`, top: `${(st.y / 75) * 100}%`, width: `${st.s}%`, aspectRatio: "1", transform: "translate(-50%, -50%)" }}
+                >
+                  <motion.svg
+                    viewBox="0 0 100 100"
+                    className="h-full w-full"
+                    initial={{ scale: 0.3, opacity: 0, rotate: st.r - 30 }}
+                    animate={{ scale: 1, opacity: 1, rotate: st.r }}
+                    transition={{ delay: i * 0.04, duration: 0.25 }}
+                    aria-hidden
+                  >
+                    <polygon points={STAR_SHAPE} fill={COLOR.yellow} stroke="#1E1B3A" strokeWidth={6} strokeLinejoin="round" />
+                  </motion.svg>
+                </div>
+              ))
+            ) : (
+              <div className="flex h-full w-full items-center justify-center text-7xl" style={{ ...DISPLAY, color: INK }}>؟</div>
+            )}
+          </div>
+
+          <div className="mt-3 h-3">
+            {phase === "show" && (
+              <div className="h-3 overflow-hidden rounded-full border-2 border-[#1E1B3A] bg-white">
+                <motion.div
+                  key={idx}
+                  initial={{ scaleX: 1 }}
+                  animate={{ scaleX: 0 }}
+                  transition={{ duration: STARS_SHOW_MS / 1000, ease: "linear" }}
+                  className="h-full w-full rounded-full"
+                  style={{ backgroundColor: COLOR.violet, transformOrigin: "right" }}
+                />
+              </div>
+            )}
+          </div>
+        </Panel>
+      </div>
+
+      <Panel className="mb-1 !p-3">
+        <div className="grid grid-cols-4 gap-3">
+          {round.options.map((n) => {
+            let bg = faceDown ? COLOR.yellow : "#ffffff";
+            let color = INK;
+            if (phase === "feedback") {
+              if (n === round.count) bg = COLOR.mint;
+              else if (n === chosen) { bg = COLOR.red; color = "#ffffff"; }
+            }
+            const disabled = phase !== "answer";
+            return (
+              <motion.button
+                key={n}
+                type="button"
+                disabled={disabled}
+                // pointerdown: ضربهٔ سریع انگشت از دست نمی‌رود
+                onPointerDown={(e) => {
+                  if (e.pointerType === "mouse" && e.button !== 0) return;
+                  handlePick(n);
+                }}
+                onClick={(e) => {
+                  if (e.detail === 0) handlePick(n); // کیبورد
+                }}
+                whileTap={disabled ? undefined : { scale: 0.95 }}
+                aria-label={faceDown ? "گزینه" : `${toFa(n)} ستاره`}
+                className={`relative touch-manipulation h-20 w-full rounded-2xl ${BORDER} text-4xl shadow-[0_4px_0_#1E1B3A] transition-colors before:absolute before:-inset-1.5 before:content-[''] ${FOCUS}`}
+                style={{ ...DISPLAY, backgroundColor: bg, color, opacity: faceDown ? 0.85 : 1 }}
+              >
+                {faceDown ? "؟" : toFa(n)}
+              </motion.button>
+            );
+          })}
+        </div>
+      </Panel>
+
+      <AnimatePresence>
+        {timeUp && (
+          <motion.div
+            key="stars-timeout"
+            role="alertdialog"
+            aria-label="زمان تمام شد"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="fixed inset-0 z-[60] flex items-center justify-center px-5"
+            style={{ backgroundColor: "rgba(11,16,32,0.92)" }}
+          >
+            <Panel className="w-full max-w-sm text-center" style={{ backgroundColor: "#FFFDF5", boxShadow: "7px 7px 0 #1E1B3A" }}>
+              <div className={`mx-auto flex h-20 w-20 items-center justify-center rounded-full ${BORDER} bg-[#FFD43B] text-4xl shadow-[4px_4px_0_#1E1B3A]`}>⏰</div>
+              <h2 className="mt-4 text-4xl" style={DISPLAY}>وقت تموم شد!</h2>
+              <p className="mt-2 text-sm font-bold text-slate-600">کارنامه‌ات داره آماده می‌شه…</p>
+            </Panel>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+/* ---------- کارنامهٔ نهایی هر دو بازی ---------- */
+
+function ResultBlock({ icon, title, score, bg, children }: {
+  icon: string; title: string; score: number; bg: string; children: React.ReactNode;
+}) {
+  return (
+    <div className={`rounded-2xl ${BORDER} p-3 text-right shadow-[3px_3px_0_#1E1B3A]`} style={{ backgroundColor: bg }} dir="rtl">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xl" style={DISPLAY}>{icon} {title}</span>
+        <span className="text-3xl leading-none" style={DISPLAY}>
+          {toFa(score)}
+          <span className="text-sm"> از ۱۰۰</span>
+        </span>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-1.5">{children}</div>
+    </div>
+  );
+}
+
+function FinalReport({ memory, stars, onRestart, onBack }: {
+  memory: MemoryMetrics | null; stars: StarsMetrics; onRestart: () => void; onBack: () => void;
+}) {
+  const total = (memory?.score ?? 0) + stars.score;
+  const pct = total / 2;
+  const grade =
+    pct >= 90 ? "فوق‌العاده 🌟"
+    : pct >= 75 ? "عالی 🎉"
+    : pct >= 55 ? "خیلی خوب 👏"
+    : pct >= 35 ? "خوب، ادامه بده 💪"
+    : "شروع خوبی بود، تمرین کن 🌱";
+  const unanswered = STARS_ROUNDS - stars.answered;
+
   return (
     <div className="flex flex-1 flex-col items-center justify-center py-8 text-center">
       <div className="w-full max-w-md">
-        <div className="mb-6 flex items-center justify-center gap-3 text-4xl" aria-hidden>
-          <span>⭐</span><span>✨</span><span>⭐</span>
-        </div>
+        <Panel className="relative !p-5 sm:!p-6" style={{ backgroundColor: "#FFFFFF", boxShadow: `6px 6px 0 ${INK}` }}>
+          <div className="flex flex-col items-center">
+            <div className="h-20 w-20 overflow-hidden rounded-full border-[4px] border-[#1E1B3A] bg-[#D6FFF0] shadow-[3px_3px_0_#1E1B3A]">
+              <img src="/pic/drHead.png" alt="دکتر سعید" className="h-full w-full object-cover object-top" />
+            </div>
 
-        <Panel className="!p-7 sm:!p-8" style={{ backgroundColor: "#FFFFFF", boxShadow: `6px 6px 0 ${INK}` }}>
-          <div className={`mx-auto flex h-24 w-24 items-center justify-center rounded-full ${BORDER} bg-[#FFD43B] text-5xl shadow-[4px_4px_0_#1E1B3A]`} aria-hidden>⭐</div>
+            <h1 className="mt-4 text-3xl" style={DISPLAY}>کارنامهٔ نهایی 🏆</h1>
 
-          <h1 className="mt-6 text-5xl leading-none" style={{ ...DISPLAY, color: COLOR.violet }}>بازی ستاره‌ها</h1>
+            <div className="my-3 flex items-end justify-center gap-2" dir="rtl">
+              <span className="text-7xl leading-none" style={{ ...DISPLAY, color: COLOR.violet }}>{toFa(total)}</span>
+              <span className="pb-1 text-xl font-black" style={DISPLAY}>از ۲۰۰</span>
+            </div>
 
-          <div className={`mx-auto mt-5 inline-flex rounded-full ${BORDER} bg-[#FF5C8A] px-5 py-2 text-2xl text-white shadow-[3px_3px_0_#1E1B3A]`} style={DISPLAY}>
-            به‌زودی
+            <Chip bg={COLOR.yellow} rotate={-2}>{grade}</Chip>
+
+            <div className="mt-5 w-full space-y-3">
+              <ResultBlock icon="🧠" title="تصویرک (حافظه)" score={memory?.score ?? 0} bg="#EDE9FE">
+                {memory ? (
+                  <>
+                    <Chip bg="#ffffff">❌ خطا {toFa(memory.errors)}</Chip>
+                    <Chip bg="#ffffff">👁️ نمایش دوباره {toFa(memory.replays)}</Chip>
+                    <Chip bg="#ffffff">⏱️ میانگین پاسخ {formatSeconds(memory.averageResponseMs)}</Chip>
+                  </>
+                ) : (
+                  <Chip bg={COLOR.pink}>هنوز ۲۰ مرحلهٔ تصویرک کامل نشده</Chip>
+                )}
+              </ResultBlock>
+
+              <ResultBlock icon="⭐" title="ستاره‌ها (دقت و سرعت)" score={stars.score} bg="#FEF9C3">
+                <Chip bg="#ffffff">✅ درست {toFa(stars.correct)} از {toFa(STARS_ROUNDS)}</Chip>
+                <Chip bg="#ffffff">❌ غلط {toFa(stars.wrong)}</Chip>
+                <Chip bg="#ffffff">⏱️ میانگین پاسخ {formatSeconds(stars.averageResponseMs)}</Chip>
+                {unanswered > 0 && <Chip bg={COLOR.pink}>⏰ {toFa(unanswered)} مرحله بی‌پاسخ</Chip>}
+              </ResultBlock>
+            </div>
+
+            <p className="mt-4 text-xs font-bold leading-6 text-slate-500">
+              امتیاز هر بازی از ۱۰۰ است و مجموع از ۲۰۰. امتیاز ستاره‌ها از دقت، سرعت پاسخ و نزدیکی جواب‌ها به عدد درست ساخته شده.
+            </p>
           </div>
-
-          <p className="mt-3 text-xl" style={{ ...DISPLAY, color: INK }}>Coming Soon</p>
-
-          <p className="mt-4 text-sm font-bold leading-7 text-slate-600">
-            این بازی در حال آماده‌سازی است.
-            <br />
-            به‌زودی یک چالش تازه برای سرعت محاسبات و هوش ریاضی در دسترس قرار می‌گیرد. 🚀
-          </p>
         </Panel>
 
-        <div className="mt-7 w-full">
+        <div className="mt-7 w-full space-y-3">
+          <PrimaryButton onClick={onRestart}>↺ بازی از اول</PrimaryButton>
           <SecondaryButton onClick={onBack}>← بازگشت به منوی بازی‌ها</SecondaryButton>
         </div>
       </div>
@@ -1061,6 +1478,12 @@ export default function VisualPage() {
   const [gameStartLevel, setGameStartLevel] = useState(1);
   const [score, setScore] = useState(0);
   const [newRecord, setNewRecord] = useState(false);
+  const [starsKey, setStarsKey] = useState(0);
+  const [starsOrigin, setStarsOrigin] = useState<"menu" | "nextTest">("nextTest");
+  const [hasMemoryResult, setHasMemoryResult] = useState(false);
+  const [starsMetrics, setStarsMetrics] = useState<StarsMetrics>({
+    correct: 0, wrong: 0, answered: 0, averageResponseMs: 0, score: 0, timedOut: false,
+  });
   const [memoryMetrics, setMemoryMetrics] = useState<MemoryMetrics>({
     errors: 0, replays: 0, attempts: 0, averageResponseMs: 0, totalInputMs: 0, score: 0,
   });
@@ -1069,6 +1492,14 @@ export default function VisualPage() {
     try {
       const saved = Number(localStorage.getItem(BEST_KEY));
       if (saved > 0) setBest(saved);
+    } catch {}
+    try {
+      const raw = localStorage.getItem(MEMORY_KEY);
+      const m = raw ? (JSON.parse(raw) as MemoryMetrics) : null;
+      if (m && typeof m.score === "number") {
+        setMemoryMetrics(m);
+        setHasMemoryResult(true);
+      }
     } catch {}
   }, []);
 
@@ -1086,6 +1517,11 @@ export default function VisualPage() {
   const goGames = () => router.push("/games");
   const goTutorial = () => setScreen("tutorial");
 
+  const handleStarsFinish = useCallback((m: StarsMetrics) => {
+    setStarsMetrics(m);
+    setScreen("final");
+  }, []);
+
   const handleOver = useCallback(
     (completed: number, didWin = false, metrics?: MemoryMetrics) => {
       const record = completed > best;
@@ -1095,7 +1531,11 @@ export default function VisualPage() {
       }
       setScore(completed);
       setNewRecord(record);
-      if (metrics) setMemoryMetrics(metrics);
+      if (metrics) {
+        setMemoryMetrics(metrics);
+        setHasMemoryResult(true);
+        try { localStorage.setItem(MEMORY_KEY, JSON.stringify(metrics)); } catch {}
+      }
       setScreen(didWin && completed >= LEVELS.length ? "nextTest" : "over");
     },
     [best]
@@ -1115,11 +1555,27 @@ export default function VisualPage() {
         paddingBottom: "max(1rem, env(safe-area-inset-bottom))",
       }}
     >
-      <RetroGrid animate={screen !== "game"} />
+      <RetroGrid animate={screen !== "game" && screen !== "stars"} />
 
       <div className="relative z-10 flex w-full max-w-md flex-col">
         {screen === "menu" && (
-          <div className="flex flex-1 flex-col items-center justify-center py-6 text-center">
+          <div className="relative flex flex-1 flex-col items-center justify-center py-6 text-center">
+            {/* میان‌بر ورود مستقیم به ستاره‌ها */}
+            {(
+              <button
+                type="button"
+                onClick={() => {
+                  setStarsOrigin("menu");
+                  setStarsKey((k) => k + 1);
+                  setScreen("stars");
+                }}
+                aria-label="ورود به بازی ستاره‌ها"
+                className={`touch-manipulation absolute right-0 top-2 flex h-12 items-center gap-1.5 rounded-2xl ${BORDER} bg-[#FACC15] px-3 text-sm font-black text-[#111827] shadow-[3px_3px_0_#1E1B3A] transition active:translate-y-1 active:shadow-[1px_1px_0_#1E1B3A] ${FOCUS}`}
+              >
+                <span className="text-xl leading-none" aria-hidden>⭐</span>
+                ستاره‌ها
+              </button>
+            )}
             <HeroFan />
 
             <h1 className="mt-8 text-7xl leading-none text-white" style={{ ...DISPLAY, textShadow: `4px 4px 0 ${INK}` }}>تصویرک</h1>
@@ -1145,10 +1601,24 @@ export default function VisualPage() {
         {screen === "game" && <Game key={gameKey} initialLevel={gameStartLevel} onOver={handleOver} onExit={exitGame} />}
 
         {screen === "nextTest" && (
-          <DoctorNextTest metrics={memoryMetrics} onStartStars={() => setScreen("comingSoon")} onBack={goGames} />
+          <DoctorNextTest
+            metrics={memoryMetrics}
+            onStartStars={() => {
+              setStarsOrigin("nextTest");
+              setStarsKey((k) => k + 1);
+              setScreen("stars");
+            }}
+            onBack={goGames}
+          />
         )}
 
-        {screen === "comingSoon" && <StarsComingSoon onBack={goGames} />}
+        {screen === "stars" && (
+          <StarsGame key={starsKey} onFinish={handleStarsFinish} onExit={() => setScreen(starsOrigin)} />
+        )}
+
+        {screen === "final" && (
+          <FinalReport memory={hasMemoryResult ? memoryMetrics : null} stars={starsMetrics} onRestart={startGameFromBeginning} onBack={goGames} />
+        )}
 
         {screen === "over" && (
           <div className="flex flex-1 flex-col items-center justify-center py-6 text-center">
