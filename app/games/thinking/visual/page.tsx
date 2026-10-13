@@ -1505,6 +1505,16 @@ export default function VisualPage() {
 
   const checkpointLevel = getStageStartLevel(best);
 
+  // دکمهٔ ستاره‌ها فقط بعد از پایان مرحلهٔ ۲۰ تصویرک فعال می‌شود
+  const starsUnlocked = best >= LEVELS.length || hasMemoryResult;
+  const [starsLockMsg, setStarsLockMsg] = useState(false);
+
+  useEffect(() => {
+    if (!starsLockMsg) return;
+    const id = setTimeout(() => setStarsLockMsg(false), 3500);
+    return () => clearTimeout(id);
+  }, [starsLockMsg]);
+
   const launch = (from: number) => {
     setGameStartLevel(from);
     setGameKey((k) => k + 1);
@@ -1561,21 +1571,40 @@ export default function VisualPage() {
         {screen === "menu" && (
           <div className="relative flex flex-1 flex-col items-center justify-center py-6 text-center">
             {/* میان‌بر ورود مستقیم به ستاره‌ها */}
-            {(
-              <button
-                type="button"
-                onClick={() => {
-                  setStarsOrigin("menu");
-                  setStarsKey((k) => k + 1);
-                  setScreen("stars");
-                }}
-                aria-label="ورود به بازی ستاره‌ها"
-                className={`touch-manipulation absolute right-0 top-2 flex h-12 items-center gap-1.5 rounded-2xl ${BORDER} bg-[#FACC15] px-3 text-sm font-black text-[#111827] shadow-[3px_3px_0_#1E1B3A] transition active:translate-y-1 active:shadow-[1px_1px_0_#1E1B3A] ${FOCUS}`}
+            <button
+              type="button"
+              aria-disabled={!starsUnlocked}
+              onClick={() => {
+                if (!starsUnlocked) {
+                  setStarsLockMsg(true);
+                  return;
+                }
+                setStarsOrigin("menu");
+                setStarsKey((k) => k + 1);
+                setScreen("stars");
+              }}
+              aria-label={starsUnlocked ? "ورود به بازی ستاره‌ها" : "بازی ستاره‌ها قفل است"}
+              className={`touch-manipulation absolute right-0 top-2 flex h-12 items-center gap-1.5 rounded-2xl ${BORDER} px-3 text-sm font-black text-[#111827] shadow-[3px_3px_0_#1E1B3A] transition ${
+                starsUnlocked
+                  ? "bg-[#FACC15] active:translate-y-1 active:shadow-[1px_1px_0_#1E1B3A]"
+                  : "cursor-not-allowed bg-slate-300 opacity-70 grayscale"
+              } ${FOCUS}`}
+            >
+              <span className="text-xl leading-none" aria-hidden>
+                {starsUnlocked ? "⭐" : "🔒"}
+              </span>
+              ستاره‌ها
+            </button>
+
+            {starsLockMsg && !starsUnlocked && (
+              <div
+                role="alert"
+                className={`absolute right-0 top-16 z-20 w-60 rounded-2xl ${BORDER} bg-white px-3 py-2 text-right text-xs font-black leading-6 shadow-[3px_3px_0_#1E1B3A]`}
               >
-                <span className="text-xl leading-none" aria-hidden>⭐</span>
-                ستاره‌ها
-              </button>
+                🔒 اول باید بازی تصویرک را تا مرحله ۲۰ به پایان برسانی، بعد بازی ستاره‌ها را شروع کنی.
+              </div>
             )}
+
             <HeroFan />
 
             <h1 className="mt-8 text-7xl leading-none text-white" style={{ ...DISPLAY, textShadow: `4px 4px 0 ${INK}` }}>تصویرک</h1>
