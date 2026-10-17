@@ -970,14 +970,24 @@ function DoctorNextTest({ metrics, onStartStars, onBack }: { metrics: MemoryMetr
 
 /* ---------- بازی ستاره‌ها ---------- */
 
-const STARS_ROUNDS = 10;
+const STARS_ROUNDS = 20;
 const STARS_SHOW_MS = 3000;
 const STARS_FEEDBACK_MS = 1200;
 const STARS_BONUS_MS = 5000;
 const STARS_PENALTY_MS = 5000;
 // بازهٔ تعداد ستاره‌ها در هر مرحله (کم‌کم سخت‌تر می‌شود)
-const STARS_RANGES: [number, number][] = [[2, 4], [3, 5], [4, 6], [5, 7], [5, 8], [6, 9], [7, 10], [8, 11], [9, 12], [10, 14]];
+const STARS_RANGES: [number, number][] = [
+  [2, 4], [3, 5], [4, 6], [5, 7], [5, 8], [6, 9], [7, 10], [8, 11], [9, 12], [10, 14],
+  // ۱۰ مرحلهٔ جدید (همراه با ماه)
+  [4, 6], [5, 7], [5, 8], [6, 9], [6, 10], [7, 10], [7, 11], [8, 11], [8, 12], [9, 13],
+];
+// تعداد ماه‌های مزاحم در هر مرحله (۱۰ مرحلهٔ اول بدون ماه)
+const MOON_RANGES: [number, number][] = [
+  [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0],
+  [2, 3], [2, 4], [3, 4], [3, 5], [4, 5], [4, 6], [5, 6], [5, 7], [6, 7], [6, 8],
+];
 const STAR_SHAPE = "50,4 61.8,36.5 96.5,38 69.4,59.5 78.8,93 50,74 21.2,93 30.6,59.5 3.5,38 38.2,36.5";
+const MOON_SHAPE = "M60 6 A46 46 0 1 0 94 64 A40 40 0 0 1 60 6 Z";
 const STRIPES = `repeating-linear-gradient(45deg, ${COLOR.yellow} 0 7px, #FFC21A 7px 14px)`;
 
 type StarsMetrics = {
@@ -985,10 +995,10 @@ type StarsMetrics = {
   averageResponseMs: number; score: number; timedOut: boolean;
 };
 type StarsPhase = "intro" | "show" | "answer" | "feedback";
-type StarItem = { x: number; y: number; s: number; r: number };
+type StarItem = { x: number; y: number; s: number; r: number; kind: "star" | "moon" };
 
 /*
-  امتیاز هر مرحله (حداکثر ۱۰ → مجموع ۱۰۰):
+  امتیاز هر مرحله (حداکثر ۱۰ → مجموع ۲۰۰ که به مقیاس ۱۰۰ برگردانده می‌شود):
   - جواب درست: ۶ امتیاز دقت + تا ۴ امتیاز سرعت (≤۱.۵ث: ۴ | ≤۲.۵ث: ۳ | ≤۴ث: ۲ | ≤۶ث: ۱)
   - جواب غلط ولی فقط یکی کم/زیاد: ۲ امتیاز (تقریب خوب)
   - غلط‌تر یا بی‌پاسخ (تمام شدن زمان): صفر
@@ -1010,20 +1020,27 @@ function makeStarOptions(correct: number) {
 
 function makeStarsRound(i: number) {
   const [lo, hi] = STARS_RANGES[i];
+  const [mlo, mhi] = MOON_RANGES[i];
   const count = lo + Math.floor(Math.random() * (hi - lo + 1));
+  const moonCount = mlo + Math.floor(Math.random() * (mhi - mlo + 1));
+  const total = count + moonCount;
   const W = 100, H = 75; // مساحت ۴:۳ بر حسب «درصد عرض»
-  const dense = count > 10;
-  let gap = dense ? 14 : 17;
+  const dense = total > 10;
+  let gap = total > 16 ? 11 : dense ? 14 : 17;
+  const kinds = shuffle<"star" | "moon">([
+    ...Array.from({ length: count }, () => "star" as const),
+    ...Array.from({ length: moonCount }, () => "moon" as const),
+  ]);
   const stars: StarItem[] = [];
 
-  for (let k = 0; k < count; k++) {
+  for (let k = 0; k < total; k++) {
     for (let tries = 1; ; tries++) {
       if (tries % 150 === 0) gap *= 0.9; // اگر جا پیدا نشد، فاصلهٔ حداقل کم‌کم کمتر می‌شود
       const s = (dense ? 9 : 11) + Math.random() * 3;
       const x = s / 2 + 2 + Math.random() * (W - s - 4);
       const y = s / 2 + 2 + Math.random() * (H - s - 4);
       if (stars.every((o) => Math.hypot(o.x - x, o.y - y) >= gap)) {
-        stars.push({ x, y, s, r: Math.round(Math.random() * 40 - 20) });
+        stars.push({ x, y, s, r: Math.round(Math.random() * 40 - 20), kind: kinds[k] });
         break;
       }
     }
@@ -1060,7 +1077,7 @@ function StarsGame({ onFinish, onExit }: { onFinish: (m: StarsMetrics) => void; 
       wrong: s.wrong,
       answered: s.answered,
       averageResponseMs: s.answered ? s.totalMs / s.answered : 0,
-      score: Math.min(100, s.points),
+      score: Math.min(100, Math.round((s.points * 100) / (STARS_ROUNDS * 10))),
       timedOut: timedOut && s.answered < STARS_ROUNDS,
     });
   }, []);
@@ -1174,6 +1191,7 @@ function StarsGame({ onFinish, onExit }: { onFinish: (m: StarsMetrics) => void; 
             <h2 className="text-2xl" style={DISPLAY}>قانون‌های بازی</h2>
             <ul className="mt-4 space-y-3">
               <RuleRow icon="⭐" bg={COLOR.yellow}>{toFa(STARS_ROUNDS)} مرحله داری؛ هر مرحله ستاره‌ها فقط {toFa(STARS_SHOW_MS / 1000)} ثانیه نشون داده می‌شن. سریع بشمارشون!</RuleRow>
+              <RuleRow icon="🌙" bg="#A78BFA">از مرحلهٔ {toFa(11)} به بعد بین ستاره‌ها ماه هم میاد؛ ماه‌ها رو نشمار، فقط ستاره‌ها!</RuleRow>
               <RuleRow icon="🔢" bg={COLOR.pink}>بعد {toFa(4)} عدد میاد؛ تعداد درست ستاره‌ها رو انتخاب کن.</RuleRow>
               <RuleRow icon="✅" bg={COLOR.mint}>درست بزنی {toFa(STARS_BONUS_MS / 1000)} ثانیه اضافه می‌شه.</RuleRow>
               <RuleRow icon="❌" bg={COLOR.red}>اشتباه بزنی {toFa(STARS_PENALTY_MS / 1000)} ثانیه کم می‌شه و می‌ری مرحلهٔ بعد.</RuleRow>
@@ -1194,10 +1212,11 @@ function StarsGame({ onFinish, onExit }: { onFinish: (m: StarsMetrics) => void; 
   const showStars = phase === "show" || phase === "feedback";
   const faceDown = phase === "show";
   const ok = chosen === round.count;
+  const hasMoons = round.stars.some((s) => s.kind === "moon");
 
   const statusText =
     phase === "show" ? "ستاره‌ها رو بشمار! 👀"
-    : phase === "answer" ? "چند تا ستاره بود؟"
+    : phase === "answer" ? (hasMoons ? "چند تا ستاره بود؟ (ماه‌ها حساب نمی‌شن)" : "چند تا ستاره بود؟")
     : ok ? "آفرین! درست بود ✔"
     : `اشتباه شد؛ ${toFa(round.count)} تا بود`;
 
@@ -1248,7 +1267,11 @@ function StarsGame({ onFinish, onExit }: { onFinish: (m: StarsMetrics) => void; 
                     transition={{ delay: i * 0.04, duration: 0.25 }}
                     aria-hidden
                   >
-                    <polygon points={STAR_SHAPE} fill={COLOR.yellow} stroke="#1E1B3A" strokeWidth={6} strokeLinejoin="round" />
+                    {st.kind === "star" ? (
+                      <polygon points={STAR_SHAPE} fill={COLOR.yellow} stroke="#1E1B3A" strokeWidth={6} strokeLinejoin="round" />
+                    ) : (
+                      <path d={MOON_SHAPE} fill={COLOR.yellow} stroke="#1E1B3A" strokeWidth={6} strokeLinejoin="round" />
+                    )}
                   </motion.svg>
                 </div>
               ))

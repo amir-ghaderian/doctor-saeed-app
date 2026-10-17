@@ -78,6 +78,12 @@ const categories: Category[] = [
     description: "بازی‌ها و تمرین‌های مرتبط با فوتبال و روان‌شناسی ورزشی.",
     href: "/games/football",
   },
+  {
+    id: "gallery",
+    title: "گالری",
+    description: "مجموعه‌ای از تصاویر و لحظه‌های ماندگار؛ مرور کن و الهام بگیر.",
+    href: "/games/gallery", // آدرس را به صفحه گالری خودت تغییر بده
+  },
 ];
  
 // color = رنگ نور/خط نور، icon و bg = استایل کارت‌های کوچک
@@ -112,6 +118,12 @@ const cardStyles: Record<string, { color: string; icon: string; bg: string; acce
     icon: "bg-violet-100/80 text-violet-600",
     bg: "bg-gradient-to-br from-white via-white to-violet-50",
     accent: "bg-violet-500",
+  },
+  gallery: {
+    color: "#f59e0b",
+    icon: "bg-amber-100/80 text-amber-600",
+    bg: "bg-gradient-to-br from-white via-white to-amber-50",
+    accent: "bg-amber-500",
   },
 };
  
@@ -396,6 +408,74 @@ function SmallCard({ category, wide = false }: { category: Category; wide?: bool
 }
  
 /* =========================================================
+   GALLERY CARD  (کارت تمام‌عرض گالری)
+========================================================= */
+ 
+function GalleryCard({ category }: { category: Category }) {
+  const s = cardStyles[category.id];
+  const tilts = ["-rotate-6", "rotate-3", "-rotate-2"];
+
+  return (
+    <InteractiveCard
+      href={category.href}
+      color={s.color}
+      radius={30}
+      className="sm:col-span-2 lg:col-span-6"
+      innerClassName={`flex min-h-[200px] flex-col justify-between gap-6 p-6 sm:flex-row sm:items-center sm:p-8 ${s.bg}`}
+    >
+      <div className="relative z-10 flex items-center gap-5">
+        <div
+          className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-[19px] shadow-sm transition-transform duration-500 group-hover:-rotate-3 group-hover:scale-105 ${s.icon}`}
+        >
+          <svg
+            viewBox="0 0 24 24"
+            className="h-7 w-7"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={1.8}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <rect x="3" y="5" width="18" height="14" rx="3" />
+            <circle cx="9" cy="10" r="1.6" />
+            <path d="M21 16l-5-5-8 8" />
+          </svg>
+        </div>
+
+        <div>
+          <h3 className="text-xl font-black tracking-tight text-slate-900 sm:text-2xl">
+            {category.title}
+          </h3>
+          <p className="mt-2 max-w-md text-sm font-medium leading-6 text-slate-500">
+            {category.description}
+          </p>
+        </div>
+      </div>
+
+      <div className="relative z-10 flex items-center gap-6">
+        {/* کادرهای عکس نمادین */}
+        <div aria-hidden className="hidden items-center sm:flex">
+          {tilts.map((t, i) => (
+            <span
+              key={i}
+              className={`-ms-3 h-16 w-14 rounded-xl border-2 border-white bg-gradient-to-br from-amber-100 to-amber-200 shadow-md transition-transform duration-500 first:ms-0 group-hover:-translate-y-1 ${t}`}
+            />
+          ))}
+        </div>
+
+        <span
+          className={`flex items-center gap-2 rounded-full px-4 py-2.5 text-xs font-black text-white shadow-lg ${s.accent}`}
+        >
+          مشاهده گالری
+          <span className="transition-transform duration-300 group-hover:-translate-x-1">←</span>
+        </span>
+      </div>
+    </InteractiveCard>
+  );
+}
+ 
+/* =========================================================
    PAGE
 ========================================================= */
  
@@ -479,6 +559,7 @@ export default function GamesLobbyPage() {
           <SmallCard category={categories[3]} />
           <SmallCard category={categories[4]} />
           <SmallCard category={categories[5]} wide />
+          <GalleryCard category={categories[6]} />
         </motion.section>
  
         {/* FOOTER */}
@@ -503,4 +584,3 @@ export default function GamesLobbyPage() {
     </main>
   );
 }
- 
