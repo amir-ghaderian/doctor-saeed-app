@@ -27,6 +27,10 @@ export const metadata: Metadata = {
 
   applicationName: SITE_NAME,
 
+appleWebApp: {
+  title: "تکل",
+},
+
   authors: [
     {
       name: "دکتر سعید",

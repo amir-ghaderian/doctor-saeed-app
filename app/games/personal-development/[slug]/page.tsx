@@ -447,14 +447,28 @@ export async function generateMetadata({ params }: PageProps) {
   const chapter = findChapter(parseChapters(readMarkdown()), slug);
 
   if (!chapter) {
-    return { title: "رشد و توسعه فردی | تکل" };
+    return { title: "رشد و توسعه فردی" };
   }
 
   const title = PRINCIPLES[chapter.number - 1].title;
+  const canonical = `https://tackl.ir/games/personal-development/${slug}`;
+  const description =
+    `آموزش ${title} در مجموعه توسعه فردی تکل؛ با راهکارهای کاربردی رشد فردی، هدف‌گذاری و تقویت مهارت‌های فردی آشنا شوید.`;
 
   return {
-    title: `${title} | تکل`,
-    description: `محتوای کامل اصل ${toFa(chapter.number)} توسعه فردی: ${title}`,
+    title,
+    description,
+    alternates: {
+      canonical,
+    },
+    openGraph: {
+      title: `${title} | تکل`,
+      description,
+      url: canonical,
+      type: "article",
+      locale: "fa_IR",
+      siteName: "تکل",
+    },
   };
 }
 

@@ -232,44 +232,7 @@ export default function BalloonVersion() {
             </div>
           </div>
 
-          <a
-            href="/"
-            className="
-              inline-flex
-              shrink-0
-              items-center
-              justify-center
-              rounded-xl
-              border
-              border-slate-200
-              bg-white
-              px-3
-              py-2
-              text-xs
-              font-semibold
-              text-slate-600
-              shadow-sm
-              transition-colors
-              hover:border-sky-200
-              hover:bg-sky-50
-              hover:text-sky-700
-              sm:px-4
-              sm:py-2.5
-              sm:text-sm
-            "
-          >
-            <span className="ml-1.5" aria-hidden="true">
-              ←
-            </span>
-
-            <span className="hidden sm:inline">
-              بازگشت به صفحه اصلی
-            </span>
-
-            <span className="sm:hidden">
-              بازگشت
-            </span>
-          </a>
+        
         </div>
 
         {/* Main Content */}
