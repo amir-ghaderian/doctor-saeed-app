@@ -6,6 +6,6 @@ export default function robots(): MetadataRoute.Robots {
       userAgent: "*",
       allow: "/",
     },
-    sitemap: "https://www.tackl.ir/sitemap.xml",
+    sitemap: "https://tackl.ir/sitemap.xml",
   };
 }
