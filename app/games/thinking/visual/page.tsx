@@ -9,8 +9,8 @@ const displayFont = Lalezar({ subsets: ["arabic", "latin"], weight: "400", varia
 const bodyFont = Vazirmatn({ subsets: ["arabic", "latin"], variable: "--font-body", display: "swap" });
 
 /* ---------- تنظیمات تایمر تصویرک ---------- */
-const FIRST_TIME_MS = 120000; // بار اولی که کاربر بازی می‌کند
-const START_TIME_MS = 60000; // از بار دوم به بعد + هر بار شروع مجدد از چک‌پوینت + ستاره‌ها
+const FIRST_TIME_MS = 180000; // شروع از مرحلهٔ ۱ (شروع از اول)
+const START_TIME_MS = 60000; // شروع از چک‌پوینت + ستاره‌ها
 const BONUS_MS = 5000;
 const PENALTY_MS = 3000;
 const REPLAY_COST_MS = 2000;
@@ -480,7 +480,7 @@ function Game({ onOver, onExit, initialLevel, startMs }: {
   onOver: (completedLevels: number, won?: boolean, metrics?: MemoryMetrics) => void;
   onExit: () => void;
   initialLevel: number;
-  startMs: number; // ۱۲۰ ثانیه بار اول، ۶۰ ثانیه از بار دوم
+  startMs: number; // ۱۸۰ ثانیه از مرحلهٔ ۱، ۶۰ ثانیه از چک‌پوینت
 }) {
   const [level, setLevel] = useState(initialLevel);
   const [round, setRound] = useState(() => makeRound(initialLevel));
@@ -846,7 +846,7 @@ function Tutorial({ onStart, onBack }: { onStart: () => void; onBack: () => void
             <div>
               <h2 className="text-2xl" style={DISPLAY}>قانون‌های بازی</h2>
               <ul className="mt-4 space-y-3">
-                <RuleRow icon="⏱️" bg={COLOR.sky}>بار اول {toFa(FIRST_TIME_MS / 1000)} ثانیه وقت داری و از دفعهٔ بعد {toFa(START_TIME_MS / 1000)} ثانیه؛ حتی زمان دیدن و حفظ کردن کارت‌ها هم از تایمر کم می‌شود.</RuleRow>
+                <RuleRow icon="⏱️" bg={COLOR.sky}>از مرحلهٔ ۱ که شروع کنی {toFa(FIRST_TIME_MS / 1000)} ثانیه وقت داری و از چک‌پوینت {toFa(START_TIME_MS / 1000)} ثانیه؛ حتی زمان دیدن و حفظ کردن کارت‌ها هم از تایمر کم می‌شود.</RuleRow>
                 <RuleRow icon="👀" bg={COLOR.yellow}>چند کارت نشونت می‌دیم؛ ترتیبشون رو حفظ کن.</RuleRow>
                 <RuleRow icon="👆" bg={COLOR.pink}>بعد نمادها رو به همون ترتیب از پایین انتخاب کن.</RuleRow>
                 <RuleRow icon="✅" bg={COLOR.mint}>درست بزنی {toFa(BONUS_MS / 1000)} ثانیه اضافه می‌شه.</RuleRow>
@@ -1311,7 +1311,7 @@ function StarsGame({ onFinish, onExit }: { onFinish: (m: StarsMetrics) => void; 
 
 /* ---------- بازی مسیر توپ ---------- */
 
-const BALL_START_TIME_MS = 180000; // ۳ دقیقه برای ۲۰ مرحله (با +۵ ثانیه برای هر جواب درست)
+const BALL_START_TIME_MS = 80000; // ۸۰ ثانیه برای ۲۰ مرحله (با +۵ ثانیه برای هر جواب درست)
 const BALL_BONUS_MS = 5000;
 const BALL_PENALTY_MS = 5000;
 const BALL_FEEDBACK_MS = 1700;
@@ -2065,8 +2065,8 @@ export default function VisualPage() {
   const ballUnlocked = starsUnlocked && hasStarsResult;
 
   const launch = (from: number) => {
-    // بار اول ۱۲۰ ثانیه، از بار دوم به بعد (از هر چک‌پوینت) ۶۰ ثانیه
-    setGameStartMs(played ? START_TIME_MS : FIRST_TIME_MS);
+    // شروع از مرحلهٔ ۱ → ۱۸۰ ثانیه، شروع از چک‌پوینت (مرحلهٔ ۷ و ۱۵) → ۶۰ ثانیه
+    setGameStartMs(from === 1 ? FIRST_TIME_MS : START_TIME_MS);
     if (!played) {
       setPlayed(true);
       try { localStorage.setItem(PLAYED_KEY, "1"); } catch {}
