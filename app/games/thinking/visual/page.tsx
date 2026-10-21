@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { Lalezar, Vazirmatn } from "next/font/google";
@@ -8,7 +8,9 @@ import { Lalezar, Vazirmatn } from "next/font/google";
 const displayFont = Lalezar({ subsets: ["arabic", "latin"], weight: "400", variable: "--font-display", display: "swap" });
 const bodyFont = Vazirmatn({ subsets: ["arabic", "latin"], variable: "--font-body", display: "swap" });
 
-const START_TIME_MS = 60000;
+/* ---------- تنظیمات تایمر تصویرک ---------- */
+const FIRST_TIME_MS = 120000; // بار اولی که کاربر بازی می‌کند
+const START_TIME_MS = 60000; // از بار دوم به بعد + هر بار شروع مجدد از چک‌پوینت + ستاره‌ها
 const BONUS_MS = 5000;
 const PENALTY_MS = 3000;
 const REPLAY_COST_MS = 2000;
@@ -29,13 +31,13 @@ const LEVELS: { cards: number; unique: number; memorize: number }[] = [
   ...L(2, 6, 4, 12),
 ];
 
-const ALLOW_CONSECUTIVE_REPEAT = false;
 const BEST_KEY = "tasvirak-best-level";
-const MEMORY_KEY = "tasvirak-memory-metrics"; // نتیجهٔ کامل ۲۰ مرحلهٔ تصویرک (برای ورود مستقیم به ستاره‌ها)
+const PLAYED_KEY = "tasvirak-played-before"; // آیا کاربر قبلاً بازی را شروع کرده؟
+const MEMORY_KEY = "tasvirak-memory-metrics"; // نتیجهٔ کامل ۲۰ مرحلهٔ تصویرک
+const STARS_KEY = "tasvirak-stars-metrics"; // نتیجهٔ کامل ۲۰ مرحلهٔ ستاره‌ها
 
 const ANIMAL_SYMBOLS = ["🐮", "🐑", "🐰", "🐔", "🐴", "🐷", "🦊", "🐸", "🐵", "🐼"];
 const VEHICLE_SYMBOLS = ["🚗", "🚕", "🚌", "🏎️", "🚲", "🚁", "✈️", "🚀"];
-const SYMBOLS = [...ANIMAL_SYMBOLS, ...VEHICLE_SYMBOLS];
 
 const NAMES: Record<string, string> = {
   "🐮": "گاو", "🐑": "گوسفند", "🐰": "خرگوش", "🐔": "مرغ", "🐴": "اسب",
@@ -49,14 +51,22 @@ const COLOR = { violet: "#7C3AED", yellow: "#FACC15", pink: "#EC4899", mint: "#1
 const DISPLAY: React.CSSProperties = { fontFamily: "var(--font-display), var(--font-body), Tahoma, sans-serif" };
 const FOCUS = "focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-2 focus-visible:outline-white";
 const BORDER = "border-[3px] border-[#1E1B3A]";
+const EXIT_BTN = `touch-manipulation flex h-14 shrink-0 items-center justify-center rounded-2xl ${BORDER} bg-[#FACC15] px-3 text-sm font-black text-[#111827] shadow-[3px_3px_0_#1E1B3A] transition active:translate-y-1 active:shadow-[1px_1px_0_#1E1B3A] ${FOCUS}`;
+const TITLE_SHADOW = (px: number): React.CSSProperties => ({ ...DISPLAY, textShadow: `${px}px ${px}px 0 ${INK}` });
 
-type Screen = "menu" | "tutorial" | "game" | "over" | "nextTest" | "stars" | "final";
+type Screen = "menu" | "tutorial" | "game" | "over" | "nextTest" | "stars" | "ball" | "final";
 type Phase = "memorize" | "input" | "levelup";
 type Flash = { id: number; kind: "good" | "bad"; amount: number };
 type MemoryMetrics = {
-  errors: number; replays: number; attempts: number;
-  averageResponseMs: number; totalInputMs: number; score: number;
+  errors: number; replays: number; attempts: number; averageResponseMs: number; score: number;
 };
+// ستاره‌ها و مسیر توپ ساختار نتیجهٔ یکسانی دارند
+type RoundsMetrics = {
+  correct: number; wrong: number; answered: number;
+  averageResponseMs: number; score: number; timedOut: boolean;
+};
+type StarsMetrics = RoundsMetrics;
+type BallMetrics = RoundsMetrics;
 
 function calculateMemoryScore({ errors, replays, averageResponseMs }: Pick<MemoryMetrics, "errors" | "replays" | "averageResponseMs">) {
   const base = averageResponseMs <= 1800 ? 100 : 98;
@@ -64,8 +74,8 @@ function calculateMemoryScore({ errors, replays, averageResponseMs }: Pick<Memor
   return Math.max(0, Math.min(100, Math.round(base - penalty)));
 }
 
-const formatSeconds = (ms: number) => `${toFa((ms / 1000).toFixed(1).replace(".0", "")).replace(".", "٫")} ثانیه`;
 const toFa = (n: number | string) => String(n).replace(/\d/g, (d) => "۰۱۲۳۴۵۶۷۸۹"[Number(d)]);
+const formatSeconds = (ms: number) => `${toFa((ms / 1000).toFixed(1).replace(".0", "")).replace(".", "٫")} ثانیه`;
 
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr];
@@ -81,35 +91,89 @@ const hasConsecutive = (seq: string[]) => seq.some((s, i) => i > 0 && s === seq[
 const getStageStartLevel = (level: number) =>
   level >= STAGE_STARTS[2] ? STAGE_STARTS[2] : level >= STAGE_STARTS[1] ? STAGE_STARTS[1] : STAGE_STARTS[0];
 
-const getRoundSymbols = (level: number) =>
-  level < 15
-    ? ANIMAL_SYMBOLS
-    : [...shuffle(ANIMAL_SYMBOLS).slice(0, 6), ...shuffle(VEHICLE_SYMBOLS).slice(0, 2)];
-
 function makeRound(level: number) {
   const safeLevel = Math.max(1, Math.min(level, LEVELS.length));
   const cfg = LEVELS[safeLevel - 1];
   const length = cfg.cards;
-  const uniqueCount = Math.min(cfg.unique, length, SYMBOLS.length);
-  const pool = getRoundSymbols(safeLevel);
+  const uniqueCount = Math.min(cfg.unique, length);
 
   let chosen: string[];
   if (safeLevel >= 15) {
     const vehicle = shuffle(VEHICLE_SYMBOLS)[0];
-    const rest = shuffle(pool.filter((s) => s !== vehicle));
-    chosen = [vehicle, ...rest].slice(0, uniqueCount);
+    const pool = [...shuffle(ANIMAL_SYMBOLS).slice(0, 6), ...shuffle(VEHICLE_SYMBOLS).slice(0, 2)];
+    chosen = [vehicle, ...shuffle(pool.filter((s) => s !== vehicle))].slice(0, uniqueCount);
   } else {
-    chosen = shuffle(pool).slice(0, uniqueCount);
+    chosen = shuffle(ANIMAL_SYMBOLS).slice(0, uniqueCount);
   }
 
   let sequence: string[] = [];
   for (let attempt = 0; attempt < 300; attempt++) {
     const extra = Array.from({ length: length - uniqueCount }, () => chosen[Math.floor(Math.random() * chosen.length)]);
     sequence = shuffle([...chosen, ...extra]);
-    if (ALLOW_CONSECUTIVE_REPEAT || !hasConsecutive(sequence)) break;
+    if (!hasConsecutive(sequence)) break;
   }
 
   return { sequence, options: shuffle(chosen), memorizeMs: cfg.memorize * 1000 };
+}
+
+/* ---------- ابزارهای مشترک ---------- */
+
+// لمس با pointerdown ثبت می‌شود (نه click): ضربهٔ سریع یا لغزش کم از دست نمی‌رود
+const pointerTap = (fn: () => void) => (e: React.PointerEvent) => {
+  if (e.pointerType === "mouse" && e.button !== 0) return;
+  fn();
+};
+// کیبورد (Enter/Space) با detail === 0
+const tap = (fn: () => void) => ({
+  onPointerDown: pointerTap(fn),
+  onClick: (e: React.MouseEvent) => {
+    if (e.detail === 0) fn();
+  },
+});
+
+/* تایمر اصلی بازی: فقط ref را کم می‌کند و در لحظهٔ صفر شدن یک بار state می‌گذارد */
+function useGameClock(startMs: number, startPaused = false) {
+  const timeRef = useRef(startMs);
+  const pausedRef = useRef(startPaused);
+  const stopRef = useRef(false);
+  const [timeUp, setTimeUp] = useState(false);
+
+  useEffect(() => {
+    let last = Date.now();
+    const id = setInterval(() => {
+      const now = Date.now();
+      const dt = now - last;
+      last = now;
+      if (pausedRef.current || stopRef.current) return;
+      timeRef.current = Math.max(0, timeRef.current - dt);
+      if (timeRef.current <= 0) {
+        pausedRef.current = true;
+        setTimeUp(true);
+      }
+    }, 100);
+    return () => clearInterval(id);
+  }, []);
+
+  return { timeRef, pausedRef, stopRef, timeUp, setTimeUp };
+}
+
+function useFlash() {
+  const [flash, setFlash] = useState<Flash | null>(null);
+  const idRef = useRef(0);
+
+  const show = useCallback((kind: Flash["kind"], amount = 5) => {
+    idRef.current += 1;
+    setFlash({ id: idRef.current, kind, amount });
+  }, []);
+  const clear = useCallback(() => setFlash(null), []);
+
+  useEffect(() => {
+    if (!flash) return;
+    const id = setTimeout(() => setFlash(null), 1200);
+    return () => clearTimeout(id);
+  }, [flash]);
+
+  return { flash, show, clear };
 }
 
 /* ---------- اجزای ساده UI ---------- */
@@ -156,9 +220,20 @@ const TextLink = ({ onClick, children }: BtnProps) => (
   </button>
 );
 
-function TimerBar({ ms, flash }: { ms: number; flash: Flash | null }) {
+function RuleRow({ icon, bg, children }: { icon: string; bg: string; children: React.ReactNode }) {
+  return (
+    <li className="flex items-start gap-3">
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border-2 border-[#1E1B3A] text-lg" style={{ backgroundColor: bg }}>
+        {icon}
+      </span>
+      <span className="pt-1 text-sm font-bold leading-6">{children}</span>
+    </li>
+  );
+}
+
+function TimerBar({ ms, flash, total = START_TIME_MS }: { ms: number; flash: Flash | null; total?: number }) {
   const sec = Math.ceil(ms / 1000);
-  const pct = Math.max(0, Math.min(100, (ms / START_TIME_MS) * 100));
+  const pct = Math.max(0, Math.min(100, (ms / total) * 100));
   const good = flash?.kind === "good";
   const bad = flash?.kind === "bad";
   const low = ms <= 10000;
@@ -210,11 +285,8 @@ function TimerBar({ ms, flash }: { ms: number; flash: Flash | null }) {
   );
 }
 
-/*
-  تایمر زنده: فقط همین کامپوننت هر ۲۰۰ میلی‌ثانیه رندر می‌شود.
-  قبلاً کل بازی (کارت‌ها، دکمه‌ها، …) هر ۱۰۰ms دوباره رندر می‌شد.
-*/
-function LiveTimer({ timeRef, flash }: { timeRef: React.MutableRefObject<number>; flash: Flash | null }) {
+/* تایمر زنده: فقط همین کامپوننت هر ۲۰۰ میلی‌ثانیه رندر می‌شود، نه کل بازی */
+function LiveTimer({ timeRef, flash, total }: { timeRef: React.MutableRefObject<number>; flash: Flash | null; total?: number }) {
   const [ms, setMs] = useState(timeRef.current);
 
   useEffect(() => {
@@ -224,7 +296,87 @@ function LiveTimer({ timeRef, flash }: { timeRef: React.MutableRefObject<number>
 
   useEffect(() => setMs(timeRef.current), [flash, timeRef]);
 
-  return <TimerBar ms={ms} flash={flash} />;
+  return <TimerBar ms={ms} flash={flash} total={total} />;
+}
+
+// نوار هدر مشترک هر سه بازی: تایمر + خروج + دو چیپ مرحله
+function GameHeader({ timeRef, flash, total, onExit, stage, tag }: {
+  timeRef: React.MutableRefObject<number>; flash: Flash | null; total?: number;
+  onExit: () => void; stage: string; tag: string;
+}) {
+  return (
+    <div>
+      <div className="flex items-center gap-2">
+        <div className="min-w-0 flex-1"><LiveTimer timeRef={timeRef} flash={flash} total={total} /></div>
+        <button type="button" onClick={onExit} className={EXIT_BTN} aria-label="خروج از بازی">خروج</button>
+      </div>
+      <div className="mt-4 flex items-center justify-center gap-2">
+        <Chip bg={COLOR.yellow} rotate={-2}>{stage}</Chip>
+        <Chip bg="#ffffff" rotate={2}>{tag}</Chip>
+      </div>
+    </div>
+  );
+}
+
+// نوار شمارش معکوس (با scaleX فقط روی GPU)
+function CountdownBar({ id, durationMs }: { id: string; durationMs: number }) {
+  return (
+    <div className="mt-3 h-3">
+      <div className="h-3 overflow-hidden rounded-full border-2 border-[#1E1B3A] bg-white">
+        <motion.div
+          key={id}
+          initial={{ scaleX: 1 }}
+          animate={{ scaleX: 0 }}
+          transition={{ duration: durationMs / 1000, ease: "linear" }}
+          className="h-full w-full rounded-full"
+          style={{ backgroundColor: COLOR.violet, transformOrigin: "right" }}
+        />
+      </div>
+    </div>
+  );
+}
+
+// صفحهٔ قوانین مشترک ستاره‌ها و مسیر توپ
+function Intro({ icon, title, onStart, onBack, children }: {
+  icon: string; title: string; onStart: () => void; onBack: () => void; children: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-1 select-none flex-col gap-5 py-4">
+      <div className="flex flex-1 flex-col justify-center gap-5">
+        <div className="text-center">
+          <div className={`mx-auto flex h-24 w-24 items-center justify-center rounded-full ${BORDER} bg-[#FFD43B] text-5xl shadow-[4px_4px_0_#1E1B3A]`} aria-hidden>{icon}</div>
+          <h1 className="mt-4 text-5xl leading-none text-white" style={TITLE_SHADOW(3)}>{title}</h1>
+        </div>
+        <Panel>
+          <h2 className="text-2xl" style={DISPLAY}>قانون‌های بازی</h2>
+          <ul className="mt-4 space-y-3">{children}</ul>
+        </Panel>
+      </div>
+      <div className="space-y-3 pb-1">
+        <PrimaryButton onClick={onStart}>شروع بازی</PrimaryButton>
+        <div className="text-center"><TextLink onClick={onBack}>← بازگشت</TextLink></div>
+      </div>
+    </div>
+  );
+}
+
+function TimeUpOverlay() {
+  return (
+    <motion.div
+      role="alertdialog"
+      aria-label="زمان تمام شد"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="fixed inset-0 z-[60] flex items-center justify-center px-5"
+      style={{ backgroundColor: "rgba(11,16,32,0.92)" }}
+    >
+      <Panel className="w-full max-w-sm text-center" style={{ backgroundColor: "#FFFDF5", boxShadow: "7px 7px 0 #1E1B3A" }}>
+        <div className={`mx-auto flex h-20 w-20 items-center justify-center rounded-full ${BORDER} bg-[#FFD43B] text-4xl shadow-[4px_4px_0_#1E1B3A]`}>⏰</div>
+        <h2 className="mt-4 text-4xl" style={DISPLAY}>وقت تموم شد!</h2>
+        <p className="mt-2 text-sm font-bold text-slate-600">کارنامه‌ات داره آماده می‌شه…</p>
+      </Panel>
+    </motion.div>
+  );
 }
 
 function FlipCard({ symbol, faceUp, count, success = false, hero = false, delay = 0 }: {
@@ -305,15 +457,7 @@ function Options({ options, onPick, disabled, hint }: {
             key={sym}
             type="button"
             disabled={disabled}
-            // لمس با pointerdown ثبت می‌شود (نه click): با ضربهٔ سریع، لرزش انگشت یا لغزش کم، ضربه از دست نمی‌رود
-            onPointerDown={(e) => {
-              if (e.pointerType === "mouse" && e.button !== 0) return;
-              onPick(sym);
-            }}
-            // کیبورد (Enter/Space) با detail === 0
-            onClick={(e) => {
-              if (e.detail === 0) onPick(sym);
-            }}
+            {...tap(() => onPick(sym))}
             whileTap={disabled ? undefined : { scale: 0.95 }}
             animate={pulse ? { scale: [1, 1.1, 1] } : { scale: 1 }}
             transition={pulse ? { duration: 1, repeat: Infinity } : { duration: 0.2 }}
@@ -330,12 +474,13 @@ function Options({ options, onPick, disabled, hint }: {
   );
 }
 
-/* ---------- بازی ---------- */
+/* ---------- بازی تصویرک ---------- */
 
-function Game({ onOver, onExit, initialLevel }: {
+function Game({ onOver, onExit, initialLevel, startMs }: {
   onOver: (completedLevels: number, won?: boolean, metrics?: MemoryMetrics) => void;
   onExit: () => void;
   initialLevel: number;
+  startMs: number; // ۱۲۰ ثانیه بار اول، ۶۰ ثانیه از بار دوم
 }) {
   const [level, setLevel] = useState(initialLevel);
   const [round, setRound] = useState(() => makeRound(initialLevel));
@@ -343,98 +488,41 @@ function Game({ onOver, onExit, initialLevel }: {
   const [replays, setReplays] = useState(0);
   const [picked, setPicked] = useState<string[]>([]);
   const [modal, setModal] = useState(false);
-  const [timeUp, setTimeUp] = useState(false);
   const [restartLevel, setRestartLevel] = useState<number | null>(null);
-  const [flash, setFlash] = useState<Flash | null>(null);
+  const [barTotal, setBarTotal] = useState(startMs); // مبنای نوار تایمر
+
+  const { flash, show, clear } = useFlash();
+  const { timeRef, pausedRef, stopRef, timeUp, setTimeUp } = useGameClock(startMs);
+  const nextTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const statsRef = useRef({ errors: 0, replays: 0, attempts: 0, totalResponseMs: 0 });
+  const lastPickAtRef = useRef(Date.now());
 
   const timeoutModal = restartLevel !== null;
 
-  // زمان باقی‌مانده در ref است تا هر ۱۰۰ms کل بازی رندر نشود
-  const timeRef = useRef(START_TIME_MS);
-  const pausedRef = useRef(false);
-  const flashId = useRef(0);
-  const nextTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const exitingRef = useRef(false);
-  const statsRef = useRef({ errors: 0, replays: 0, attempts: 0, totalResponseMs: 0, totalInputMs: 0 });
-  const inputStartedAtRef = useRef<number | null>(null);
-  const lastPickAtRef = useRef<number | null>(null);
-
-  const resetInputClock = useCallback(() => {
-    const now = Date.now();
-    inputStartedAtRef.current = now;
-    lastPickAtRef.current = now;
-  }, []);
-
-  const commitInputSegment = useCallback(() => {
-    if (inputStartedAtRef.current === null) return;
-    const elapsed = Math.max(0, Date.now() - inputStartedAtRef.current);
-    statsRef.current.totalInputMs += Math.min(elapsed, START_TIME_MS);
-    inputStartedAtRef.current = null;
-    lastPickAtRef.current = null;
-  }, []);
-
-  const buildMetrics = useCallback((): MemoryMetrics => {
-    const { errors, replays, attempts, totalResponseMs, totalInputMs } = statsRef.current;
-    const averageResponseMs = attempts > 0 ? totalResponseMs / attempts : 0;
-    return {
-      errors, replays, attempts, averageResponseMs, totalInputMs,
-      score: calculateMemoryScore({ errors, replays, averageResponseMs }),
-    };
-  }, []);
-
-  const showFlash = (kind: Flash["kind"], amount = 5) => {
-    flashId.current += 1;
-    setFlash({ id: flashId.current, kind, amount });
-  };
-
-  // تایمر اصلی: بدون setState، فقط ref را کم می‌کند و در لحظهٔ صفر شدن یک بار state می‌گذارد
-  useEffect(() => {
-    let last = Date.now();
-    const id = setInterval(() => {
-      const now = Date.now();
-      const dt = now - last;
-      last = now;
-      if (pausedRef.current || exitingRef.current) return;
-      timeRef.current = Math.max(0, timeRef.current - dt);
-      if (timeRef.current <= 0) {
-        pausedRef.current = true;
-        setTimeUp(true);
-      }
-    }, 100);
-    return () => clearInterval(id);
-  }, []);
-
   // پایان زمان: محاسبهٔ چک‌پوینت و نمایش پیام
   useEffect(() => {
-    if (!timeUp || timeoutModal || exitingRef.current) return;
-    commitInputSegment();
+    if (!timeUp || timeoutModal || stopRef.current) return;
     setModal(false);
-    setFlash(null);
+    clear();
     setRestartLevel(getStageStartLevel(level));
-  }, [timeUp, timeoutModal, level, commitInputSegment]);
+  }, [timeUp, timeoutModal, level, clear, stopRef]);
 
-  // ورود به مرحلهٔ حفظ کردن
+  // پایان مرحلهٔ حفظ کردن
   useEffect(() => {
     if (phase !== "memorize" || timeoutModal) return;
     const id = setTimeout(() => {
-      if (exitingRef.current) return;
-      if (inputStartedAtRef.current === null) resetInputClock();
+      if (stopRef.current) return;
+      lastPickAtRef.current = Date.now();
       setPhase("input");
     }, round.memorizeMs);
     return () => clearTimeout(id);
-  }, [phase, round.memorizeMs, resetInputClock, timeoutModal]);
-
-  useEffect(() => {
-    if (!flash) return;
-    const id = setTimeout(() => setFlash(null), 1200);
-    return () => clearTimeout(id);
-  }, [flash]);
+  }, [phase, round.memorizeMs, timeoutModal, stopRef]);
 
   const closeModal = useCallback(() => {
     setModal(false);
     setPicked([]);
-    resetInputClock();
-  }, [resetInputClock]);
+    lastPickAtRef.current = Date.now();
+  }, []);
 
   useEffect(() => {
     if (!modal) return;
@@ -444,30 +532,26 @@ function Game({ onOver, onExit, initialLevel }: {
 
   useEffect(() => () => {
     if (nextTimer.current) clearTimeout(nextTimer.current);
-    commitInputSegment();
-  }, [commitInputSegment]);
+  }, []);
 
   const handleExit = () => {
-    if (exitingRef.current) return;
-    exitingRef.current = true;
-    if (nextTimer.current) {
-      clearTimeout(nextTimer.current);
-      nextTimer.current = null;
-    }
-    commitInputSegment();
+    if (stopRef.current) return;
+    stopRef.current = true;
+    if (nextTimer.current) clearTimeout(nextTimer.current);
     onExit();
   };
 
   // ادامه بعد از پایان تایمر: از چک‌پوینت همان استیج با ۶۰ ثانیه تازه
   const handleTimeoutContinue = () => {
-    if (restartLevel === null || exitingRef.current) return;
+    if (restartLevel === null || stopRef.current) return;
     const lv = restartLevel;
     timeRef.current = START_TIME_MS;
     pausedRef.current = false;
+    setBarTotal(START_TIME_MS);
     setTimeUp(false);
     setRestartLevel(null);
     setModal(false);
-    setFlash(null);
+    clear();
     setLevel(lv);
     setRound(makeRound(lv));
     setPicked([]);
@@ -476,12 +560,11 @@ function Game({ onOver, onExit, initialLevel }: {
   };
 
   const handlePick = (sym: string) => {
-    if (phase !== "input" || modal || timeoutModal || exitingRef.current) return;
+    if (phase !== "input" || modal || timeoutModal || stopRef.current) return;
 
     const now = Date.now();
-    const reactionMs = Math.max(0, Math.min(10000, now - (lastPickAtRef.current ?? now)));
     statsRef.current.attempts += 1;
-    statsRef.current.totalResponseMs += reactionMs;
+    statsRef.current.totalResponseMs += Math.max(0, Math.min(10000, now - lastPickAtRef.current));
     lastPickAtRef.current = now;
 
     if (sym === round.sequence[picked.length]) {
@@ -491,46 +574,48 @@ function Game({ onOver, onExit, initialLevel }: {
 
       setPhase("levelup");
       timeRef.current += BONUS_MS;
-      showFlash("good");
+      show("good");
 
-      if (level >= LEVELS.length) {
-        commitInputSegment();
-        nextTimer.current = setTimeout(() => {
-          if (!exitingRef.current) onOver(level, true, buildMetrics());
-        }, 1100);
-      } else {
-        nextTimer.current = setTimeout(() => {
-          if (exitingRef.current) return;
-          const nextLevel = level + 1;
-          setLevel(nextLevel);
-          setRound(makeRound(nextLevel));
-          setPicked([]);
-          setReplays(0);
-          setPhase("memorize");
-        }, 1100);
-      }
+      nextTimer.current = setTimeout(() => {
+        if (stopRef.current) return;
+        if (level >= LEVELS.length) {
+          const { errors, replays: rp, attempts, totalResponseMs } = statsRef.current;
+          const averageResponseMs = attempts > 0 ? totalResponseMs / attempts : 0;
+          onOver(level, true, {
+            errors, replays: rp, attempts, averageResponseMs,
+            score: calculateMemoryScore({ errors, replays: rp, averageResponseMs }),
+          });
+          return;
+        }
+        const nextLevel = level + 1;
+        setLevel(nextLevel);
+        setRound(makeRound(nextLevel));
+        setPicked([]);
+        setReplays(0);
+        setPhase("memorize");
+      }, 1100);
     } else {
       statsRef.current.errors += 1;
       timeRef.current = Math.max(0, timeRef.current - PENALTY_MS);
-      showFlash("bad");
+      show("bad");
       setModal(true);
     }
   };
 
-  const canReplay = phase === "input" && !modal && !timeoutModal && !exitingRef.current && timeRef.current > REPLAY_COST_MS;
+  const canReplay = phase === "input" && !modal && !timeoutModal && !stopRef.current && timeRef.current > REPLAY_COST_MS;
 
   const handleReplay = () => {
     if (!canReplay) return;
     statsRef.current.replays += 1;
     timeRef.current = Math.max(0, timeRef.current - REPLAY_COST_MS);
-    showFlash("bad", REPLAY_COST_MS / 1000);
+    show("bad", REPLAY_COST_MS / 1000);
     setReplays((r) => r + 1);
     setPhase("memorize");
   };
 
   const handleKnowIt = () => {
-    if (phase !== "memorize" || timeoutModal || exitingRef.current) return;
-    resetInputClock();
+    if (phase !== "memorize" || timeoutModal || stopRef.current) return;
+    lastPickAtRef.current = Date.now();
     setPhase("input");
   };
 
@@ -545,26 +630,14 @@ function Game({ onOver, onExit, initialLevel }: {
 
   return (
     <div className="flex flex-1 select-none flex-col gap-4">
-      <div>
-        <div className="flex items-center gap-2">
-          <div className="min-w-0 flex-1">
-            <LiveTimer timeRef={timeRef} flash={flash} />
-          </div>
-          <button
-            type="button"
-            onClick={handleExit}
-            className={`flex h-14 shrink-0 items-center justify-center rounded-2xl ${BORDER} bg-[#FACC15] px-3 text-sm font-black text-[#111827] shadow-[3px_3px_0_#1E1B3A] transition active:translate-y-1 active:shadow-[1px_1px_0_#1E1B3A] ${FOCUS}`}
-            aria-label="خروج از بازی"
-          >
-            خروج
-          </button>
-        </div>
-
-        <div className="mt-4 flex items-center justify-center gap-2">
-          <Chip bg={COLOR.yellow} rotate={-2}>مرحله {toFa(level)} از {toFa(LEVELS.length)}</Chip>
-          <Chip bg="#ffffff" rotate={2}>{toFa(total)} کارت</Chip>
-        </div>
-      </div>
+      <GameHeader
+        timeRef={timeRef}
+        flash={flash}
+        total={barTotal}
+        onExit={handleExit}
+        stage={`مرحله ${toFa(level)} از ${toFa(LEVELS.length)}`}
+        tag={`${toFa(total)} کارت`}
+      />
 
       <div className="flex flex-1 flex-col justify-center gap-3">
         <p className="text-center text-xl" style={{ ...DISPLAY, color: phase === "levelup" ? COLOR.mint : "#ffffff" }} aria-live="polite">
@@ -579,22 +652,11 @@ function Game({ onOver, onExit, initialLevel }: {
             success={phase === "levelup"}
             roundKey={level}
           />
-
-          <div className="mt-3 h-3">
-            {phase === "memorize" && (
-              <div className="h-3 overflow-hidden rounded-full border-2 border-[#1E1B3A] bg-white">
-                {/* با scaleX (فقط GPU) به‌جای width که هر فریم layout می‌سازد */}
-                <motion.div
-                  key={`${level}-${replays}`}
-                  initial={{ scaleX: 1 }}
-                  animate={{ scaleX: 0 }}
-                  transition={{ duration: round.memorizeMs / 1000, ease: "linear" }}
-                  className="h-full w-full rounded-full"
-                  style={{ backgroundColor: COLOR.violet, transformOrigin: "right" }}
-                />
-              </div>
-            )}
-          </div>
+          {phase === "memorize" ? (
+            <CountdownBar id={`${level}-${replays}`} durationMs={round.memorizeMs} />
+          ) : (
+            <div className="mt-3 h-3" />
+          )}
         </Panel>
       </div>
 
@@ -644,7 +706,7 @@ function Game({ onOver, onExit, initialLevel }: {
               className="w-full max-w-xs text-center"
             >
               <div className={`mx-auto flex h-24 w-24 items-center justify-center rounded-full ${BORDER} bg-white text-5xl shadow-[4px_4px_0_#1E1B3A]`}>✖</div>
-              <h2 className="mt-5 text-5xl text-white" style={{ ...DISPLAY, textShadow: `3px 3px 0 ${INK}` }}>اشتباه بود!</h2>
+              <h2 className="mt-5 text-5xl text-white" style={TITLE_SHADOW(3)}>اشتباه بود!</h2>
               <div className={`mt-5 inline-block rounded-2xl ${BORDER} bg-white px-5 py-2 text-2xl shadow-[3px_3px_0_#1E1B3A]`} style={{ ...DISPLAY, color: INK }}>
                 −{toFa(PENALTY_MS / 1000)} ثانیه
               </div>
@@ -654,7 +716,7 @@ function Game({ onOver, onExit, initialLevel }: {
         )}
       </AnimatePresence>
 
-      {/* پایان زمان و بازگشت به چک‌پوینت (بدون backdrop-filter که روی گوشی سنگین است) */}
+      {/* پایان زمان و بازگشت به چک‌پوینت */}
       <AnimatePresence>
         {timeoutModal && (
           <motion.div
@@ -724,17 +786,6 @@ function Game({ onOver, onExit, initialLevel }: {
 const TUT_SEQ = ["🐮", "🐑", "🐰"];
 const TUT_OPTIONS = ["🐰", "🐮", "🐑"];
 
-function RuleRow({ icon, bg, children }: { icon: string; bg: string; children: React.ReactNode }) {
-  return (
-    <li className="flex items-start gap-3">
-      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border-2 border-[#1E1B3A] text-lg" style={{ backgroundColor: bg }}>
-        {icon}
-      </span>
-      <span className="pt-1 text-sm font-bold leading-6">{children}</span>
-    </li>
-  );
-}
-
 function Tutorial({ onStart, onBack }: { onStart: () => void; onBack: () => void }) {
   const [step, setStep] = useState(0);
   const [picked, setPicked] = useState<string[]>([]);
@@ -795,10 +846,10 @@ function Tutorial({ onStart, onBack }: { onStart: () => void; onBack: () => void
             <div>
               <h2 className="text-2xl" style={DISPLAY}>قانون‌های بازی</h2>
               <ul className="mt-4 space-y-3">
-                <RuleRow icon="⏱️" bg={COLOR.sky}>{toFa(60)} ثانیه از شروع هر مرحله وقت داری؛ حتی زمان دیدن و حفظ کردن کارت‌ها هم از تایمر کم می‌شود.</RuleRow>
+                <RuleRow icon="⏱️" bg={COLOR.sky}>بار اول {toFa(FIRST_TIME_MS / 1000)} ثانیه وقت داری و از دفعهٔ بعد {toFa(START_TIME_MS / 1000)} ثانیه؛ حتی زمان دیدن و حفظ کردن کارت‌ها هم از تایمر کم می‌شود.</RuleRow>
                 <RuleRow icon="👀" bg={COLOR.yellow}>چند کارت نشونت می‌دیم؛ ترتیبشون رو حفظ کن.</RuleRow>
                 <RuleRow icon="👆" bg={COLOR.pink}>بعد نمادها رو به همون ترتیب از پایین انتخاب کن.</RuleRow>
-                <RuleRow icon="✅" bg={COLOR.mint}>درست بزنی {toFa(5)} ثانیه اضافه می‌شه.</RuleRow>
+                <RuleRow icon="✅" bg={COLOR.mint}>درست بزنی {toFa(BONUS_MS / 1000)} ثانیه اضافه می‌شه.</RuleRow>
                 <RuleRow icon="❌" bg={COLOR.red}>اشتباه بزنی {toFa(PENALTY_MS / 1000)} ثانیه کم می‌شه.</RuleRow>
                 <RuleRow icon="👁️" bg="#A78BFA">یادت رفت؟ «دوباره نشونم بده» کارت‌ها رو دوباره نشون می‌ده و {toFa(REPLAY_COST_MS / 1000)} ثانیه کم می‌کنه.</RuleRow>
               </ul>
@@ -911,53 +962,48 @@ function DoctorNextTest({ metrics, onStartStars, onBack }: { metrics: MemoryMetr
   return (
     <div className="flex flex-1 flex-col items-center justify-center py-8 text-center">
       <div className="w-full max-w-md">
-        <div className="relative overflow-visible">
-          <Panel className="relative !p-5 sm:!p-6" style={{ backgroundColor: "#FFFFFF", boxShadow: `6px 6px 0 ${INK}` }}>
-            <div className="flex flex-col items-center">
-              <div className="relative flex w-full flex-col items-center">
+        <Panel className="relative !p-5 sm:!p-6" style={{ backgroundColor: "#FFFFFF", boxShadow: `6px 6px 0 ${INK}` }}>
+          <div className="flex flex-col items-center">
+            <div className="relative flex w-full flex-col items-center">
+              <div
+                className="relative z-10 h-28 w-28 overflow-hidden rounded-full border-[4px] border-[#1E1B3A] bg-[#D6FFF0] shadow-[4px_4px_0_#1E1B3A]"
+                aria-label="تصویر دکتر"
+              >
+                <img src="/pic/drHead.png" alt="دکتر سعید" className="h-full w-full object-cover object-top" />
+              </div>
+
+              <div className={`relative mt-5 w-full rounded-[2rem] ${BORDER} bg-[#FFF7C2] px-5 py-5 text-right shadow-[4px_4px_0_#1E1B3A]`} dir="rtl">
                 <div
-                  className="relative z-10 h-28 w-28 overflow-hidden rounded-full border-[4px] border-[#1E1B3A] bg-[#D6FFF0] shadow-[4px_4px_0_#1E1B3A]"
-                  aria-label="تصویر دکتر"
-                >
-                  <img src="/pic/drHead.png" alt="دکتر سعید" className="h-full w-full object-cover object-top" />
-                </div>
+                  className="absolute -top-4 left-1/2 h-7 w-7 -translate-x-1/2 rotate-45 border-l-[3px] border-t-[3px] border-[#1E1B3A] bg-[#FFF7C2]"
+                  aria-hidden
+                />
+                <div className="relative">
+                  <p className="text-2xl leading-9" style={DISPLAY}>آفرین! 🎉</p>
+                  <p className="mt-3 text-sm font-bold leading-7">امتیاز حافظه‌ات در این تست شد:</p>
 
-                <div className={`relative mt-5 w-full rounded-[2rem] ${BORDER} bg-[#FFF7C2] px-5 py-5 text-right shadow-[4px_4px_0_#1E1B3A]`} dir="rtl">
-                  <div
-                    className="absolute -top-4 left-1/2 h-7 w-7 -translate-x-1/2 rotate-45 border-l-[3px] border-t-[3px] border-[#1E1B3A] bg-[#FFF7C2]"
-                    aria-hidden
-                  />
-                  <div className="relative">
-                    <p className="text-2xl leading-9" style={DISPLAY}>آفرین! 🎉</p>
-                    <p className="mt-3 text-sm font-bold leading-7">امتیاز حافظه‌ات در این تست شد:</p>
-
-                    <div className="my-4 flex items-center justify-center gap-3">
-                      <span className="text-6xl leading-none" style={{ ...DISPLAY, color: COLOR.violet }}>{toFa(metrics.score)}</span>
-                      <span className="text-xl font-black" style={DISPLAY}>از ۱۰۰</span>
-                    </div>
-
-                    <p className="text-sm font-bold leading-7">
-                      این امتیاز بر اساس <b>سرعت انتخاب‌ها</b>، تعداد <b>خطاها</b> و دفعات <b>نمایش دوباره</b> محاسبه شده.
-                      <br />
-                      حالا بریم ببینیم در تست‌های بعدی چه عملکردی داری.
-                    </p>
+                  <div className="my-4 flex items-center justify-center gap-3">
+                    <span className="text-6xl leading-none" style={{ ...DISPLAY, color: COLOR.violet }}>{toFa(metrics.score)}</span>
+                    <span className="text-xl font-black" style={DISPLAY}>از ۱۰۰</span>
                   </div>
+
+                  <p className="text-sm font-bold leading-7">
+                    این امتیاز بر اساس <b>سرعت انتخاب‌ها</b>، تعداد <b>خطاها</b> و دفعات <b>نمایش دوباره</b> محاسبه شده.
+                    <br />
+                    حالا بریم ببینیم در تست‌های بعدی چه عملکردی داری.
+                  </p>
                 </div>
               </div>
-
-              <div className="mt-6 grid w-full grid-cols-3 gap-2">
-                <Chip bg={COLOR.yellow} rotate={-1}>🧠 امتیاز {toFa(metrics.score)}</Chip>
-                <Chip bg={COLOR.pink}>❌ خطا {toFa(metrics.errors)}</Chip>
-                <Chip bg={COLOR.sky} rotate={1}>👁️ نمایش دوباره {toFa(metrics.replays)}</Chip>
-              </div>
-
-              <p className="mt-3 text-xs font-bold text-slate-500">میانگین زمان پاسخ: {formatSeconds(metrics.averageResponseMs)}</p>
             </div>
-          </Panel>
 
-          <div className="pointer-events-none absolute -left-3 top-6 text-3xl" aria-hidden>✨</div>
-          <div className="pointer-events-none absolute -right-3 top-20 text-3xl" aria-hidden>⭐</div>
-        </div>
+            <div className="mt-6 grid w-full grid-cols-3 gap-2">
+              <Chip bg={COLOR.yellow} rotate={-1}>🧠 امتیاز {toFa(metrics.score)}</Chip>
+              <Chip bg={COLOR.pink}>❌ خطا {toFa(metrics.errors)}</Chip>
+              <Chip bg={COLOR.sky} rotate={1}>👁️ نمایش دوباره {toFa(metrics.replays)}</Chip>
+            </div>
+
+            <p className="mt-3 text-xs font-bold text-slate-500">میانگین زمان پاسخ: {formatSeconds(metrics.averageResponseMs)}</p>
+          </div>
+        </Panel>
 
         <div className="mt-7 w-full space-y-3">
           <PrimaryButton onClick={onStartStars}>⭐ شروع بازی ستاره‌ها</PrimaryButton>
@@ -966,6 +1012,23 @@ function DoctorNextTest({ metrics, onStartStars, onBack }: { metrics: MemoryMetr
       </div>
     </div>
   );
+}
+
+/* ---------- منطق مشترک ستاره‌ها و مسیر توپ ---------- */
+
+function buildRoundsMetrics(
+  s: { correct: number; wrong: number; answered: number; totalMs: number; points: number },
+  rounds: number,
+  timedOut: boolean
+): RoundsMetrics {
+  return {
+    correct: s.correct,
+    wrong: s.wrong,
+    answered: s.answered,
+    averageResponseMs: s.answered ? s.totalMs / s.answered : 0,
+    score: Math.min(100, Math.round((s.points * 100) / (rounds * 10))),
+    timedOut: timedOut && s.answered < rounds,
+  };
 }
 
 /* ---------- بازی ستاره‌ها ---------- */
@@ -978,30 +1041,25 @@ const STARS_PENALTY_MS = 5000;
 // بازهٔ تعداد ستاره‌ها در هر مرحله (کم‌کم سخت‌تر می‌شود)
 const STARS_RANGES: [number, number][] = [
   [2, 4], [3, 5], [4, 6], [5, 7], [5, 8], [6, 9], [7, 10], [8, 11], [9, 12], [10, 14],
-  // ۱۰ مرحلهٔ جدید (همراه با ماه)
   [4, 6], [5, 7], [5, 8], [6, 9], [6, 10], [7, 10], [7, 11], [8, 11], [8, 12], [9, 13],
 ];
 // تعداد ماه‌های مزاحم در هر مرحله (۱۰ مرحلهٔ اول بدون ماه)
 const MOON_RANGES: [number, number][] = [
-  [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0],
+  ...Array.from({ length: 10 }, () => [0, 0] as [number, number]),
   [2, 3], [2, 4], [3, 4], [3, 5], [4, 5], [4, 6], [5, 6], [5, 7], [6, 7], [6, 8],
 ];
 const STAR_SHAPE = "50,4 61.8,36.5 96.5,38 69.4,59.5 78.8,93 50,74 21.2,93 30.6,59.5 3.5,38 38.2,36.5";
 const MOON_SHAPE = "M60 6 A46 46 0 1 0 94 64 A40 40 0 0 1 60 6 Z";
 const STRIPES = `repeating-linear-gradient(45deg, ${COLOR.yellow} 0 7px, #FFC21A 7px 14px)`;
 
-type StarsMetrics = {
-  correct: number; wrong: number; answered: number;
-  averageResponseMs: number; score: number; timedOut: boolean;
-};
 type StarsPhase = "intro" | "show" | "answer" | "feedback";
 type StarItem = { x: number; y: number; s: number; r: number; kind: "star" | "moon" };
 
 /*
   امتیاز هر مرحله (حداکثر ۱۰ → مجموع ۲۰۰ که به مقیاس ۱۰۰ برگردانده می‌شود):
   - جواب درست: ۶ امتیاز دقت + تا ۴ امتیاز سرعت (≤۱.۵ث: ۴ | ≤۲.۵ث: ۳ | ≤۴ث: ۲ | ≤۶ث: ۱)
-  - جواب غلط ولی فقط یکی کم/زیاد: ۲ امتیاز (تقریب خوب)
-  - غلط‌تر یا بی‌پاسخ (تمام شدن زمان): صفر
+  - جواب غلط ولی فقط یکی کم/زیاد: ۲ امتیاز
+  - غلط‌تر یا بی‌پاسخ: صفر
 */
 function starPoints(ok: boolean, diff: number, ms: number) {
   if (ok) return 6 + (ms <= 1500 ? 4 : ms <= 2500 ? 3 : ms <= 4000 ? 2 : ms <= 6000 ? 1 : 0);
@@ -1054,61 +1112,32 @@ function StarsGame({ onFinish, onExit }: { onFinish: (m: StarsMetrics) => void; 
   const [round, setRound] = useState(() => makeStarsRound(0));
   const [phase, setPhase] = useState<StarsPhase>("intro");
   const [chosen, setChosen] = useState<number | null>(null);
-  const [flash, setFlash] = useState<Flash | null>(null);
-  const [timeUp, setTimeUp] = useState(false);
 
-  const timeRef = useRef(START_TIME_MS);
-  const pausedRef = useRef(true); // تا زدن «شروع» تایمر متوقف است
-  const flashId = useRef(0);
+  const { flash, show, clear } = useFlash();
+  const { timeRef, pausedRef, stopRef, timeUp } = useGameClock(START_TIME_MS, true); // تا زدن «شروع» متوقف است
   const nextTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const doneRef = useRef(false);
   const answerStartRef = useRef(0);
   const statsRef = useRef({ correct: 0, wrong: 0, answered: 0, totalMs: 0, points: 0 });
   const finishRef = useRef(onFinish);
   finishRef.current = onFinish;
 
   const finish = useCallback((timedOut: boolean) => {
-    if (doneRef.current) return;
-    doneRef.current = true;
+    if (stopRef.current) return;
+    stopRef.current = true;
     if (nextTimer.current) clearTimeout(nextTimer.current);
-    const s = statsRef.current;
-    finishRef.current({
-      correct: s.correct,
-      wrong: s.wrong,
-      answered: s.answered,
-      averageResponseMs: s.answered ? s.totalMs / s.answered : 0,
-      score: Math.min(100, Math.round((s.points * 100) / (STARS_ROUNDS * 10))),
-      timedOut: timedOut && s.answered < STARS_ROUNDS,
-    });
-  }, []);
-
-  // تایمر اصلی (بدون setState؛ فقط ref را کم می‌کند)
-  useEffect(() => {
-    let last = Date.now();
-    const id = setInterval(() => {
-      const now = Date.now();
-      const dt = now - last;
-      last = now;
-      if (pausedRef.current || doneRef.current) return;
-      timeRef.current = Math.max(0, timeRef.current - dt);
-      if (timeRef.current <= 0) {
-        pausedRef.current = true;
-        setTimeUp(true);
-      }
-    }, 100);
-    return () => clearInterval(id);
-  }, []);
+    finishRef.current(buildRoundsMetrics(statsRef.current, STARS_ROUNDS, timedOut));
+  }, [stopRef]);
 
   // پایان زمان: مکث کوتاه و رفتن به کارنامه
   useEffect(() => {
-    if (!timeUp || doneRef.current) return;
+    if (!timeUp || stopRef.current) return;
     if (nextTimer.current) clearTimeout(nextTimer.current);
-    setFlash(null);
+    clear();
     const id = setTimeout(() => finish(true), 1600);
     return () => clearTimeout(id);
-  }, [timeUp, finish]);
+  }, [timeUp, finish, clear, stopRef]);
 
-  // پایان نمایش ستاره‌ها (۳ ثانیه) → نمایش گزینه‌ها
+  // پایان نمایش ستاره‌ها → نمایش گزینه‌ها
   useEffect(() => {
     if (phase !== "show" || timeUp) return;
     const id = setTimeout(() => {
@@ -1117,12 +1146,6 @@ function StarsGame({ onFinish, onExit }: { onFinish: (m: StarsMetrics) => void; 
     }, STARS_SHOW_MS);
     return () => clearTimeout(id);
   }, [phase, timeUp, idx]);
-
-  useEffect(() => {
-    if (!flash) return;
-    const id = setTimeout(() => setFlash(null), 1200);
-    return () => clearTimeout(id);
-  }, [flash]);
 
   useEffect(() => () => {
     if (nextTimer.current) clearTimeout(nextTimer.current);
@@ -1134,14 +1157,14 @@ function StarsGame({ onFinish, onExit }: { onFinish: (m: StarsMetrics) => void; 
   };
 
   const handleExit = () => {
-    if (doneRef.current) return;
-    doneRef.current = true;
+    if (stopRef.current) return;
+    stopRef.current = true;
     if (nextTimer.current) clearTimeout(nextTimer.current);
     onExit();
   };
 
   const handlePick = (n: number) => {
-    if (phase !== "answer" || timeUp || doneRef.current) return;
+    if (phase !== "answer" || timeUp || stopRef.current) return;
 
     const ms = Math.max(0, Math.min(10000, Date.now() - answerStartRef.current));
     const ok = n === round.count;
@@ -1158,13 +1181,12 @@ function StarsGame({ onFinish, onExit }: { onFinish: (m: StarsMetrics) => void; 
       timeRef.current = Math.max(0, timeRef.current - STARS_PENALTY_MS);
     }
 
-    flashId.current += 1;
-    setFlash({ id: flashId.current, kind: ok ? "good" : "bad", amount: 5 });
+    show(ok ? "good" : "bad");
     setChosen(n);
     setPhase("feedback");
 
     nextTimer.current = setTimeout(() => {
-      if (doneRef.current) return;
+      if (stopRef.current) return;
       if (idx >= STARS_ROUNDS - 1) {
         finish(false);
         return;
@@ -1177,38 +1199,19 @@ function StarsGame({ onFinish, onExit }: { onFinish: (m: StarsMetrics) => void; 
     }, STARS_FEEDBACK_MS);
   };
 
-  /* ----- صفحهٔ قوانین ----- */
   if (phase === "intro") {
     return (
-      <div className="flex flex-1 select-none flex-col gap-5 py-4">
-        <div className="flex flex-1 flex-col justify-center gap-5">
-          <div className="text-center">
-            <div className={`mx-auto flex h-24 w-24 items-center justify-center rounded-full ${BORDER} bg-[#FFD43B] text-5xl shadow-[4px_4px_0_#1E1B3A]`} aria-hidden>⭐</div>
-            <h1 className="mt-4 text-5xl leading-none text-white" style={{ ...DISPLAY, textShadow: `3px 3px 0 ${INK}` }}>بازی ستاره‌ها</h1>
-          </div>
-
-          <Panel>
-            <h2 className="text-2xl" style={DISPLAY}>قانون‌های بازی</h2>
-            <ul className="mt-4 space-y-3">
-              <RuleRow icon="⭐" bg={COLOR.yellow}>{toFa(STARS_ROUNDS)} مرحله داری؛ هر مرحله ستاره‌ها فقط {toFa(STARS_SHOW_MS / 1000)} ثانیه نشون داده می‌شن. سریع بشمارشون!</RuleRow>
-              <RuleRow icon="🌙" bg="#A78BFA">از مرحلهٔ {toFa(11)} به بعد بین ستاره‌ها ماه هم میاد؛ ماه‌ها رو نشمار، فقط ستاره‌ها!</RuleRow>
-              <RuleRow icon="🔢" bg={COLOR.pink}>بعد {toFa(4)} عدد میاد؛ تعداد درست ستاره‌ها رو انتخاب کن.</RuleRow>
-              <RuleRow icon="✅" bg={COLOR.mint}>درست بزنی {toFa(STARS_BONUS_MS / 1000)} ثانیه اضافه می‌شه.</RuleRow>
-              <RuleRow icon="❌" bg={COLOR.red}>اشتباه بزنی {toFa(STARS_PENALTY_MS / 1000)} ثانیه کم می‌شه و می‌ری مرحلهٔ بعد.</RuleRow>
-              <RuleRow icon="⏱️" bg={COLOR.sky}>کل بازی {toFa(START_TIME_MS / 1000)} ثانیه وقت داری و امتیاز به سرعت و دقتت بستگی داره.</RuleRow>
-            </ul>
-          </Panel>
-        </div>
-
-        <div className="space-y-3 pb-1">
-          <PrimaryButton onClick={handleStart}>شروع بازی</PrimaryButton>
-          <div className="text-center"><TextLink onClick={handleExit}>← بازگشت</TextLink></div>
-        </div>
-      </div>
+      <Intro icon="⭐" title="بازی ستاره‌ها" onStart={handleStart} onBack={handleExit}>
+        <RuleRow icon="⭐" bg={COLOR.yellow}>{toFa(STARS_ROUNDS)} مرحله داری؛ هر مرحله ستاره‌ها فقط {toFa(STARS_SHOW_MS / 1000)} ثانیه نشون داده می‌شن. سریع بشمارشون!</RuleRow>
+        <RuleRow icon="🌙" bg="#A78BFA">از مرحلهٔ {toFa(11)} به بعد بین ستاره‌ها ماه هم میاد؛ ماه‌ها رو نشمار، فقط ستاره‌ها!</RuleRow>
+        <RuleRow icon="🔢" bg={COLOR.pink}>بعد {toFa(4)} عدد میاد؛ تعداد درست ستاره‌ها رو انتخاب کن.</RuleRow>
+        <RuleRow icon="✅" bg={COLOR.mint}>درست بزنی {toFa(STARS_BONUS_MS / 1000)} ثانیه اضافه می‌شه.</RuleRow>
+        <RuleRow icon="❌" bg={COLOR.red}>اشتباه بزنی {toFa(STARS_PENALTY_MS / 1000)} ثانیه کم می‌شه و می‌ری مرحلهٔ بعد.</RuleRow>
+        <RuleRow icon="⏱️" bg={COLOR.sky}>کل بازی {toFa(START_TIME_MS / 1000)} ثانیه وقت داری و امتیاز به سرعت و دقتت بستگی داره.</RuleRow>
+      </Intro>
     );
   }
 
-  /* ----- خود بازی ----- */
   const showStars = phase === "show" || phase === "feedback";
   const faceDown = phase === "show";
   const ok = chosen === round.count;
@@ -1225,24 +1228,13 @@ function StarsGame({ onFinish, onExit }: { onFinish: (m: StarsMetrics) => void; 
 
   return (
     <div className="flex flex-1 select-none flex-col gap-4">
-      <div>
-        <div className="flex items-center gap-2">
-          <div className="min-w-0 flex-1"><LiveTimer timeRef={timeRef} flash={flash} /></div>
-          <button
-            type="button"
-            onClick={handleExit}
-            className={`touch-manipulation flex h-14 shrink-0 items-center justify-center rounded-2xl ${BORDER} bg-[#FACC15] px-3 text-sm font-black text-[#111827] shadow-[3px_3px_0_#1E1B3A] transition active:translate-y-1 active:shadow-[1px_1px_0_#1E1B3A] ${FOCUS}`}
-            aria-label="خروج از بازی"
-          >
-            خروج
-          </button>
-        </div>
-
-        <div className="mt-4 flex items-center justify-center gap-2">
-          <Chip bg={COLOR.yellow} rotate={-2}>مرحله {toFa(idx + 1)} از {toFa(STARS_ROUNDS)}</Chip>
-          <Chip bg="#ffffff" rotate={2}>⭐ بازی ستاره‌ها</Chip>
-        </div>
-      </div>
+      <GameHeader
+        timeRef={timeRef}
+        flash={flash}
+        onExit={handleExit}
+        stage={`مرحله ${toFa(idx + 1)} از ${toFa(STARS_ROUNDS)}`}
+        tag="⭐ بازی ستاره‌ها"
+      />
 
       <div className="flex flex-1 flex-col justify-center gap-3">
         <p className="text-center text-xl" style={{ ...DISPLAY, color: statusColor }} aria-live="polite">{statusText}</p>
@@ -1280,20 +1272,7 @@ function StarsGame({ onFinish, onExit }: { onFinish: (m: StarsMetrics) => void; 
             )}
           </div>
 
-          <div className="mt-3 h-3">
-            {phase === "show" && (
-              <div className="h-3 overflow-hidden rounded-full border-2 border-[#1E1B3A] bg-white">
-                <motion.div
-                  key={idx}
-                  initial={{ scaleX: 1 }}
-                  animate={{ scaleX: 0 }}
-                  transition={{ duration: STARS_SHOW_MS / 1000, ease: "linear" }}
-                  className="h-full w-full rounded-full"
-                  style={{ backgroundColor: COLOR.violet, transformOrigin: "right" }}
-                />
-              </div>
-            )}
-          </div>
+          {phase === "show" ? <CountdownBar id={String(idx)} durationMs={STARS_SHOW_MS} /> : <div className="mt-3 h-3" />}
         </Panel>
       </div>
 
@@ -1312,14 +1291,7 @@ function StarsGame({ onFinish, onExit }: { onFinish: (m: StarsMetrics) => void; 
                 key={n}
                 type="button"
                 disabled={disabled}
-                // pointerdown: ضربهٔ سریع انگشت از دست نمی‌رود
-                onPointerDown={(e) => {
-                  if (e.pointerType === "mouse" && e.button !== 0) return;
-                  handlePick(n);
-                }}
-                onClick={(e) => {
-                  if (e.detail === 0) handlePick(n); // کیبورد
-                }}
+                {...tap(() => handlePick(n))}
                 whileTap={disabled ? undefined : { scale: 0.95 }}
                 aria-label={faceDown ? "گزینه" : `${toFa(n)} ستاره`}
                 className={`relative touch-manipulation h-20 w-full rounded-2xl ${BORDER} text-4xl shadow-[0_4px_0_#1E1B3A] transition-colors before:absolute before:-inset-1.5 before:content-[''] ${FOCUS}`}
@@ -1332,30 +1304,524 @@ function StarsGame({ onFinish, onExit }: { onFinish: (m: StarsMetrics) => void; 
         </div>
       </Panel>
 
-      <AnimatePresence>
-        {timeUp && (
-          <motion.div
-            key="stars-timeout"
-            role="alertdialog"
-            aria-label="زمان تمام شد"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="fixed inset-0 z-[60] flex items-center justify-center px-5"
-            style={{ backgroundColor: "rgba(11,16,32,0.92)" }}
-          >
-            <Panel className="w-full max-w-sm text-center" style={{ backgroundColor: "#FFFDF5", boxShadow: "7px 7px 0 #1E1B3A" }}>
-              <div className={`mx-auto flex h-20 w-20 items-center justify-center rounded-full ${BORDER} bg-[#FFD43B] text-4xl shadow-[4px_4px_0_#1E1B3A]`}>⏰</div>
-              <h2 className="mt-4 text-4xl" style={DISPLAY}>وقت تموم شد!</h2>
-              <p className="mt-2 text-sm font-bold text-slate-600">کارنامه‌ات داره آماده می‌شه…</p>
-            </Panel>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {timeUp && <TimeUpOverlay />}
     </div>
   );
 }
 
-/* ---------- کارنامهٔ نهایی هر دو بازی ---------- */
+/* ---------- بازی مسیر توپ ---------- */
+
+const BALL_START_TIME_MS = 180000; // ۳ دقیقه برای ۲۰ مرحله (با +۵ ثانیه برای هر جواب درست)
+const BALL_BONUS_MS = 5000;
+const BALL_PENALTY_MS = 5000;
+const BALL_FEEDBACK_MS = 1700;
+/*
+  اندازهٔ هزارتو در هر مرحله: [ستون، ردیف]
+  مرحله‌های ۱ تا ۱۰ مثل قبل؛ از مرحلهٔ ۱۱ به بعد هزارتو بزرگ‌تر می‌شود
+  و مسیر درست پیچ‌وخم‌دارتر و راه‌های فریبنده طولانی‌تر می‌شوند تا مرحلهٔ ۲۰ که خیلی سخت است.
+*/
+const BALL_SIZES: [number, number][] = [
+  [4, 4], [4, 4], [5, 5], [5, 5], [5, 6], [6, 6], [6, 7], [7, 7], [7, 8], [8, 8],
+  [8, 9], [8, 9], [9, 9], [9, 10], [9, 10], [9, 11], [10, 11], [10, 11], [10, 12], [10, 12],
+];
+const BALL_ROUNDS = BALL_SIZES.length; // ۲۰ مرحله
+
+// ابعاد نقاشی SVG
+const B_CELL = 46;
+const B_PAD = 8;
+const B_GOAL_H = 34;
+
+type BallPhase = "intro" | "play" | "feedback";
+type Cell = [number, number]; // [ردیف، ستون]
+type BallRound = {
+  cols: number;
+  rows: number;
+  right: boolean[][]; // راه باز بین (r,c) و (r,c+1)
+  down: boolean[][]; // راه باز بین (r,c) و (r+1,c)
+  ball: Cell;
+  gates: number[]; // ستون سه دروازه در ردیف بالا
+  target: number; // اندیس دروازهٔ درست
+  path: Cell[]; // مسیر درست از توپ تا دروازه
+};
+
+/*
+  امتیاز هر مرحله (حداکثر ۱۰ → مجموع ۲۰۰ که به مقیاس ۱۰۰ برگردانده می‌شود):
+  - جواب درست: ۶ امتیاز دقت + تا ۴ امتیاز سرعت (≤۴ث: ۴ | ≤۷ث: ۳ | ≤۱۱ث: ۲ | ≤۱۶ث: ۱)
+  - مرحله‌های بزرگ‌تر زمان بیشتری لازم دارند، پس آستانه‌های سرعت با شمارهٔ مرحله کش می‌آیند
+    (مرحلهٔ ۲۰ حدود ۲٫۵ برابر مرحلهٔ ۱)
+  - جواب غلط یا بی‌پاسخ: صفر
+*/
+function ballPoints(ok: boolean, ms: number, idx: number) {
+  if (!ok) return 0;
+  const t = ms / (1 + idx * 0.08);
+  return 6 + (t <= 4000 ? 4 : t <= 7000 ? 3 : t <= 11000 ? 2 : t <= 16000 ? 1 : 0);
+}
+
+const emptyGrid = (cols: number, rows: number) => Array.from({ length: rows }, () => Array<boolean>(cols).fill(false));
+
+function carveMaze(cols: number, rows: number) {
+  const right = emptyGrid(cols, rows);
+  const down = emptyGrid(cols, rows);
+  const seen = emptyGrid(cols, rows);
+
+  const sr = Math.floor(Math.random() * rows);
+  const sc = Math.floor(Math.random() * cols);
+  seen[sr][sc] = true;
+  const stack: Cell[] = [[sr, sc]];
+
+  while (stack.length) {
+    const [r, c] = stack[stack.length - 1];
+    const options = shuffle<Cell>([[r - 1, c], [r + 1, c], [r, c - 1], [r, c + 1]]).filter(
+      ([nr, nc]) => nr >= 0 && nr < rows && nc >= 0 && nc < cols && !seen[nr][nc]
+    );
+    if (!options.length) {
+      stack.pop();
+      continue;
+    }
+    const [nr, nc] = options[0];
+    if (nr === r) right[r][Math.min(c, nc)] = true;
+    else down[Math.min(r, nr)][c] = true;
+    seen[nr][nc] = true;
+    stack.push([nr, nc]);
+  }
+
+  return { right, down };
+}
+
+function neighborsOf(r: number, c: number, cols: number, rows: number, right: boolean[][], down: boolean[][]): Cell[] {
+  const out: Cell[] = [];
+  if (c < cols - 1 && right[r][c]) out.push([r, c + 1]);
+  if (c > 0 && right[r][c - 1]) out.push([r, c - 1]);
+  if (r < rows - 1 && down[r][c]) out.push([r + 1, c]);
+  if (r > 0 && down[r - 1][c]) out.push([r - 1, c]);
+  return out;
+}
+
+// parent[i]: -1 = شروع، -2 = غیرقابل‌دسترس، غیر از این = خانهٔ قبلی
+function bfsParents(start: Cell, cols: number, rows: number, right: boolean[][], down: boolean[][]) {
+  const parent: number[] = Array(cols * rows).fill(-2);
+  const s = start[0] * cols + start[1];
+  parent[s] = -1;
+  const queue = [s];
+  for (let q = 0; q < queue.length; q++) {
+    const cur = queue[q];
+    const r = Math.floor(cur / cols);
+    const c = cur % cols;
+    for (const [nr, nc] of neighborsOf(r, c, cols, rows, right, down)) {
+      const ni = nr * cols + nc;
+      if (parent[ni] === -2) {
+        parent[ni] = cur;
+        queue.push(ni);
+      }
+    }
+  }
+  return parent;
+}
+
+function pathTo(parent: number[], target: number, cols: number): Cell[] | null {
+  if (parent[target] === -2) return null;
+  const out: Cell[] = [];
+  for (let cur = target; cur !== -1; cur = parent[cur]) out.push([Math.floor(cur / cols), cur % cols]);
+  return out.reverse();
+}
+
+function closeEdge(a: Cell, b: Cell, right: boolean[][], down: boolean[][]) {
+  if (a[0] === b[0]) right[a[0]][Math.min(a[1], b[1])] = false;
+  else down[Math.min(a[0], b[0])][a[1]] = false;
+}
+
+function pickGateCols(cols: number): number[] {
+  for (let t = 0; t < 60; t++) {
+    const pick = shuffle(Array.from({ length: cols }, (_, c) => c)).slice(0, 3).sort((a, b) => a - b);
+    if (cols < 5 || (pick[1] - pick[0] >= 2 && pick[2] - pick[1] >= 2)) return pick;
+  }
+  return [0, Math.floor((cols - 1) / 2), cols - 1];
+}
+
+/*
+  ساخت یک مرحله:
+  ۱) هزارتوی کامل (درختی)؛ توپ پایین زمین و سه دروازه بالا.
+  ۲) دروازهٔ درست انتخاب می‌شود و برای دو دروازهٔ دیگر روی مسیرشان دیوار می‌گذاریم.
+  ۳) با جست‌وجوی دوباره مطمئن می‌شویم فقط همان یک دروازه قابل‌رسیدن است.
+
+  سختی (d از ۰ در مرحلهٔ ۱ تا ۱ در مرحلهٔ ۲۰):
+  - مسیر درست باید طولانی‌تر و پیچ‌وخم‌دارتر باشد.
+  - دیوارِ مسیر فریبنده بیشتر به دروازه نزدیک گذاشته می‌شود؛ یعنی چشم مدتی
+    مسیر غلط را دنبال می‌کند و در لحظهٔ آخر به بن‌بست می‌خورد.
+*/
+function makeBallRound(i: number): BallRound {
+  const [cols, rows] = BALL_SIZES[Math.min(i, BALL_SIZES.length - 1)];
+  const d = i / Math.max(1, BALL_ROUNDS - 1);
+  const minLen = Math.round(rows * (1 + 0.5 * d)) + 1;
+
+  for (let attempt = 0; attempt < 400; attempt++) {
+    const { right, down } = carveMaze(cols, rows);
+    const ball: Cell = [rows - 1, Math.floor(Math.random() * cols)];
+    const gates = pickGateCols(cols);
+    const target = Math.floor(Math.random() * 3);
+
+    const parent = bfsParents(ball, cols, rows, right, down);
+    const pathT = pathTo(parent, gates[target], cols);
+    if (!pathT) continue;
+    // اگر بعد از چند بار تلاش مسیر به اندازهٔ کافی طولانی پیدا نشد، شرط کم‌کم شل می‌شود
+    const needLen = attempt < 250 ? minLen : attempt < 330 ? rows + 1 : 0;
+    if (pathT.length < needLen) continue;
+
+    let ok = true;
+    for (let j = 0; j < 3; j++) {
+      if (j === target) continue;
+      const pathG = pathTo(parent, gates[j], cols);
+      if (!pathG) { ok = false; break; }
+
+      let k = 0;
+      while (
+        k + 1 < pathT.length && k + 1 < pathG.length &&
+        pathT[k + 1][0] === pathG[k + 1][0] && pathT[k + 1][1] === pathG[k + 1][1]
+      ) k++;
+
+      // دروازه روی مسیر درست افتاده؛ این ترکیب قابل‌استفاده نیست
+      if (k === pathG.length - 1) { ok = false; break; }
+
+      // هرچه مرحله سخت‌تر، محل بستن راه به دروازه نزدیک‌تر (بن‌بست دیرتر دیده می‌شود)
+      const span = pathG.length - 1 - k;
+      const biased = 1 - Math.pow(Math.random(), 1 + 2 * d);
+      const offset = Math.min(span - 1, Math.floor(biased * span));
+      const cut = k + offset;
+      closeEdge(pathG[cut], pathG[cut + 1], right, down);
+    }
+    if (!ok) continue;
+
+    const check = bfsParents(ball, cols, rows, right, down);
+    if (check[gates[target]] === -2) continue;
+    if (gates.some((g, j) => j !== target && check[g] !== -2)) continue;
+
+    return { cols, rows, right, down, ball, gates, target, path: pathT };
+  }
+
+  // حالت اضطراری: یک راهروی مستقیم
+  const mid = Math.floor(cols / 2);
+  const right = emptyGrid(cols, rows);
+  const down = emptyGrid(cols, rows);
+  for (let r = 0; r < rows - 1; r++) down[r][mid] = true;
+  return {
+    cols, rows, right, down,
+    ball: [rows - 1, mid],
+    gates: [0, mid, cols - 1],
+    target: 1,
+    path: Array.from({ length: rows }, (_, k) => [rows - 1 - k, mid] as Cell),
+  };
+}
+
+/* توپ فوتبال به‌صورت SVG خالص؛ دقیقاً هم‌مرکز با (cx, cy) و بدون وابستگی به فونت اموجی */
+const pentPoints = (x: number, y: number, rad: number, rotDeg: number) =>
+  Array.from({ length: 5 }, (_, k) => {
+    const a = ((rotDeg + 72 * k) * Math.PI) / 180;
+    return `${(x + rad * Math.cos(a)).toFixed(2)},${(y + rad * Math.sin(a)).toFixed(2)}`;
+  }).join(" ");
+
+function BallSprite({ cx, cy, r }: { cx: number; cy: number; r: number }) {
+  const clipId = "ball-sprite-clip";
+  const ink = "#1E1B3A";
+  const inner = r * 0.36; // شعاع پنج‌ضلعی وسط
+  const outerDist = r * 1.02; // فاصلهٔ مرکز لکه‌های لبه
+  const outerSize = r * 0.4;
+  const angles = [0, 1, 2, 3, 4].map((k) => -90 + 72 * k);
+
+  return (
+    <g aria-hidden>
+      <defs>
+        <clipPath id={clipId}>
+          <circle cx={cx} cy={cy} r={r} />
+        </clipPath>
+      </defs>
+
+      <circle cx={cx} cy={cy} r={r} fill="#ffffff" />
+
+      <g clipPath={`url(#${clipId})`}>
+        {angles.map((deg) => {
+          const a = (deg * Math.PI) / 180;
+          const x1 = cx + inner * Math.cos(a);
+          const y1 = cy + inner * Math.sin(a);
+          const x2 = cx + (outerDist - outerSize) * Math.cos(a);
+          const y2 = cy + (outerDist - outerSize) * Math.sin(a);
+          return <line key={`s${deg}`} x1={x1} y1={y1} x2={x2} y2={y2} stroke={ink} strokeWidth={r * 0.09} strokeLinecap="round" />;
+        })}
+
+        {angles.map((deg) => {
+          const a = (deg * Math.PI) / 180;
+          return (
+            <polygon
+              key={`p${deg}`}
+              points={pentPoints(cx + outerDist * Math.cos(a), cy + outerDist * Math.sin(a), outerSize, deg + 180)}
+              fill={ink}
+              stroke={ink}
+              strokeWidth={r * 0.05}
+              strokeLinejoin="round"
+            />
+          );
+        })}
+
+        <polygon points={pentPoints(cx, cy, inner, -90)} fill={ink} stroke={ink} strokeWidth={r * 0.05} strokeLinejoin="round" />
+      </g>
+
+      <circle cx={cx} cy={cy} r={r} fill="none" stroke={ink} strokeWidth={2.5} />
+    </g>
+  );
+}
+
+function BallMaze({ round, phase, chosen, onPick }: {
+  round: BallRound; phase: BallPhase; chosen: number | null; onPick: (j: number) => void;
+}) {
+  const { cols, rows, right, down, ball, gates, target, path } = round;
+  const top = B_PAD + B_GOAL_H;
+  const W = cols * B_CELL + B_PAD * 2;
+  const H = top + rows * B_CELL + B_PAD;
+  const X = (c: number) => B_PAD + c * B_CELL;
+  const Y = (r: number) => top + r * B_CELL;
+  const feedback = phase === "feedback";
+
+  const walls = useMemo(() => {
+    const segs: string[] = [];
+    for (let c = 0; c < cols; c++) {
+      if (!gates.includes(c)) segs.push(`M${X(c)} ${Y(0)}L${X(c + 1)} ${Y(0)}`);
+    }
+    segs.push(`M${X(0)} ${Y(rows)}L${X(cols)} ${Y(rows)}`);
+    segs.push(`M${X(0)} ${Y(0)}L${X(0)} ${Y(rows)}`);
+    segs.push(`M${X(cols)} ${Y(0)}L${X(cols)} ${Y(rows)}`);
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        if (c < cols - 1 && !right[r][c]) segs.push(`M${X(c + 1)} ${Y(r)}L${X(c + 1)} ${Y(r + 1)}`);
+        if (r < rows - 1 && !down[r][c]) segs.push(`M${X(c)} ${Y(r + 1)}L${X(c + 1)} ${Y(r + 1)}`);
+      }
+    }
+    return segs.join("");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [round]);
+
+  const half = B_CELL / 2;
+  const answerPath =
+    "M" +
+    [
+      ...path.map(([r, c]) => `${X(c) + half} ${Y(r) + half}`),
+      `${X(gates[target]) + half} ${B_PAD + B_GOAL_H / 2}`,
+    ].join("L");
+
+  const bx = X(ball[1]) + half;
+  const by = Y(ball[0]) + half;
+
+  return (
+    <svg
+      viewBox={`0 0 ${W} ${H}`}
+      className="mx-auto block w-full select-none"
+      style={{ maxWidth: `${Math.min(cols * 4.3, 36)}rem`, touchAction: "manipulation" }}
+      role="group"
+      aria-label="زمین بازی مسیر توپ"
+    >
+      {/* خطوط چمن */}
+      {Array.from({ length: rows }, (_, r) => (
+        <rect key={r} x={X(0)} y={Y(r)} width={cols * B_CELL} height={B_CELL} fill={r % 2 === 0 ? "#DCFCE7" : "#BBF7D0"} />
+      ))}
+
+      {/* دیوارهای هزارتو */}
+      <path d={walls} fill="none" stroke="#1E1B3A" strokeWidth={3.5} strokeLinecap="round" />
+
+      {/* دروازه‌ها */}
+      {gates.map((gc, j) => {
+        const x0 = X(gc);
+        const isTarget = j === target;
+        const wrongPick = feedback && chosen === j && !isTarget;
+        const fill = feedback ? (isTarget ? COLOR.mint : wrongPick ? COLOR.red : "#ffffff") : "#ffffff";
+        const netW = B_CELL - 8;
+        return (
+          <g
+            key={gc}
+            role="button"
+            tabIndex={phase === "play" ? 0 : -1}
+            aria-label={`دروازه ${toFa(j + 1)}`}
+            style={{ cursor: phase === "play" ? "pointer" : "default", outline: "none" }}
+            onPointerDown={pointerTap(() => onPick(j))}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onPick(j);
+              }
+            }}
+          >
+            <rect x={x0 + 4} y={B_PAD} width={netW} height={B_GOAL_H} rx={5} fill={fill} stroke="#1E1B3A" strokeWidth={3} />
+            {[1, 2, 3, 4].map((k) => (
+              <line key={k} x1={x0 + 4 + (k * netW) / 5} y1={B_PAD + 4} x2={x0 + 4 + (k * netW) / 5} y2={B_PAD + B_GOAL_H - 4} stroke="#94A3B8" strokeWidth={1} />
+            ))}
+            <text
+              x={x0 + half}
+              y={B_PAD + B_GOAL_H / 2}
+              textAnchor="middle"
+              dominantBaseline="central"
+              fontSize={17}
+              style={{ ...DISPLAY, fill: wrongPick ? "#ffffff" : INK, stroke: fill, strokeWidth: 4, paintOrder: "stroke" }}
+            >
+              {toFa(j + 1)}
+            </text>
+            {/* ناحیهٔ لمس بزرگ‌تر */}
+            <rect x={x0} y={0} width={B_CELL} height={top + 6} fill="transparent" />
+          </g>
+        );
+      })}
+
+      {/* مسیر درست بعد از جواب */}
+      {feedback && (
+        <motion.path
+          d={answerPath}
+          fill="none"
+          stroke={COLOR.violet}
+          strokeWidth={5}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          initial={{ pathLength: 0 }}
+          animate={{ pathLength: 1 }}
+          transition={{ duration: 0.9, ease: "easeInOut" }}
+        />
+      )}
+
+      {/* توپ */}
+      <BallSprite cx={bx} cy={by} r={B_CELL * 0.36} />
+    </svg>
+  );
+}
+
+function BallGame({ onFinish, onExit }: { onFinish: (m: BallMetrics) => void; onExit: () => void }) {
+  const [idx, setIdx] = useState(0);
+  const [round, setRound] = useState(() => makeBallRound(0));
+  const [phase, setPhase] = useState<BallPhase>("intro");
+  const [chosen, setChosen] = useState<number | null>(null);
+
+  const { flash, show, clear } = useFlash();
+  const { timeRef, pausedRef, stopRef, timeUp } = useGameClock(BALL_START_TIME_MS, true);
+  const nextTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const answerStartRef = useRef(0);
+  const statsRef = useRef({ correct: 0, wrong: 0, answered: 0, totalMs: 0, points: 0 });
+  const finishRef = useRef(onFinish);
+  finishRef.current = onFinish;
+
+  const finish = useCallback((timedOut: boolean) => {
+    if (stopRef.current) return;
+    stopRef.current = true;
+    if (nextTimer.current) clearTimeout(nextTimer.current);
+    finishRef.current(buildRoundsMetrics(statsRef.current, BALL_ROUNDS, timedOut));
+  }, [stopRef]);
+
+  // پایان زمان: مکث کوتاه و رفتن به کارنامه
+  useEffect(() => {
+    if (!timeUp || stopRef.current) return;
+    if (nextTimer.current) clearTimeout(nextTimer.current);
+    clear();
+    const id = setTimeout(() => finish(true), 1600);
+    return () => clearTimeout(id);
+  }, [timeUp, finish, clear, stopRef]);
+
+  useEffect(() => () => {
+    if (nextTimer.current) clearTimeout(nextTimer.current);
+  }, []);
+
+  const handleStart = () => {
+    pausedRef.current = false;
+    answerStartRef.current = Date.now();
+    setPhase("play");
+  };
+
+  const handleExit = () => {
+    if (stopRef.current) return;
+    stopRef.current = true;
+    if (nextTimer.current) clearTimeout(nextTimer.current);
+    onExit();
+  };
+
+  const handlePick = (j: number) => {
+    if (phase !== "play" || timeUp || stopRef.current) return;
+
+    const ms = Math.max(0, Math.min(60000, Date.now() - answerStartRef.current));
+    const ok = j === round.target;
+    const s = statsRef.current;
+    s.answered += 1;
+    s.totalMs += ms;
+    s.points += ballPoints(ok, ms, idx);
+
+    if (ok) {
+      s.correct += 1;
+      timeRef.current += BALL_BONUS_MS;
+    } else {
+      s.wrong += 1;
+      timeRef.current = Math.max(0, timeRef.current - BALL_PENALTY_MS);
+    }
+
+    show(ok ? "good" : "bad");
+    setChosen(j);
+    setPhase("feedback");
+
+    nextTimer.current = setTimeout(() => {
+      if (stopRef.current) return;
+      if (idx >= BALL_ROUNDS - 1) {
+        finish(false);
+        return;
+      }
+      const next = idx + 1;
+      setIdx(next);
+      setRound(makeBallRound(next));
+      setChosen(null);
+      answerStartRef.current = Date.now();
+      setPhase("play");
+    }, BALL_FEEDBACK_MS);
+  };
+
+  if (phase === "intro") {
+    return (
+      <Intro icon="⚽" title="مسیر توپ" onStart={handleStart} onBack={handleExit}>
+        <RuleRow icon="⚽" bg={COLOR.yellow}>توپ پایین زمین شروع می‌کنه و باید از میان دیوارهای هزارتو بره بالا.</RuleRow>
+        <RuleRow icon="🥅" bg={COLOR.pink}>بالا {toFa(3)} تا دروازه هست؛ فقط یکی‌شون راه داره و راه بقیه مسدوده.</RuleRow>
+        <RuleRow icon="👆" bg="#A78BFA">مسیر توپ رو با چشمت دنبال کن و دروازه‌ای که توپ بهش می‌رسه رو بزن.</RuleRow>
+        <RuleRow icon="✅" bg={COLOR.mint}>درست بزنی {toFa(BALL_BONUS_MS / 1000)} ثانیه اضافه می‌شه.</RuleRow>
+        <RuleRow icon="❌" bg={COLOR.red}>اشتباه بزنی {toFa(BALL_PENALTY_MS / 1000)} ثانیه کم می‌شه و می‌ری مرحلهٔ بعد.</RuleRow>
+        <RuleRow icon="🔥" bg="#FDBA74">{toFa(BALL_ROUNDS)} مرحله داری؛ هزارتو کم‌کم بزرگ‌تر و پیچیده‌تر می‌شه و مرحله‌های آخر خیلی سختن!</RuleRow>
+        <RuleRow icon="⏱️" bg={COLOR.sky}>کل بازی {toFa(BALL_START_TIME_MS / 1000)} ثانیه وقت داری؛ امتیاز به سرعت و دقتت بستگی داره.</RuleRow>
+      </Intro>
+    );
+  }
+
+  const feedback = phase === "feedback";
+  const ok = chosen === round.target;
+
+  const statusText =
+    !feedback ? "توپ به کدوم دروازه می‌رسه؟"
+    : ok ? "آفرین! گل شد ⚽"
+    : "اشتباه شد؛ مسیر درست رو ببین";
+
+  const statusColor = feedback ? (ok ? COLOR.mint : COLOR.red) : "#ffffff";
+  const panelBg = feedback ? (ok ? "#D1FAE5" : "#FFE4E6") : "#ffffff";
+
+  return (
+    <div className="flex flex-1 select-none flex-col gap-4">
+      <GameHeader
+        timeRef={timeRef}
+        flash={flash}
+        total={BALL_START_TIME_MS}
+        onExit={handleExit}
+        stage={`مرحله ${toFa(idx + 1)} از ${toFa(BALL_ROUNDS)}`}
+        tag="⚽ مسیر توپ"
+      />
+
+      <div className="flex flex-1 flex-col justify-center gap-3">
+        <p className="text-center text-xl" style={{ ...DISPLAY, color: statusColor }} aria-live="polite">{statusText}</p>
+
+        <Panel className="!p-3 transition-colors" style={{ backgroundColor: panelBg }}>
+          <BallMaze key={idx} round={round} phase={phase} chosen={chosen} onPick={handlePick} />
+        </Panel>
+      </div>
+
+      {timeUp && <TimeUpOverlay />}
+    </div>
+  );
+}
+
+/* ---------- کارنامهٔ نهایی هر سه بازی ---------- */
 
 function ResultBlock({ icon, title, score, bg, children }: {
   icon: string; title: string; score: number; bg: string; children: React.ReactNode;
@@ -1374,18 +1840,30 @@ function ResultBlock({ icon, title, score, bg, children }: {
   );
 }
 
-function FinalReport({ memory, stars, onRestart, onBack }: {
-  memory: MemoryMetrics | null; stars: StarsMetrics; onRestart: () => void; onBack: () => void;
+// چیپ‌های مشترک نتیجهٔ ستاره‌ها و مسیر توپ
+function RoundsChips({ m, rounds }: { m: RoundsMetrics; rounds: number }) {
+  const unanswered = rounds - m.answered;
+  return (
+    <>
+      <Chip bg="#ffffff">✅ درست {toFa(m.correct)} از {toFa(rounds)}</Chip>
+      <Chip bg="#ffffff">❌ غلط {toFa(m.wrong)}</Chip>
+      <Chip bg="#ffffff">⏱️ میانگین پاسخ {formatSeconds(m.averageResponseMs)}</Chip>
+      {unanswered > 0 && <Chip bg={COLOR.pink}>⏰ {toFa(unanswered)} مرحله بی‌پاسخ</Chip>}
+    </>
+  );
+}
+
+function FinalReport({ memory, stars, ball, onRestart, onBack }: {
+  memory: MemoryMetrics | null; stars: StarsMetrics; ball: BallMetrics | null; onRestart: () => void; onBack: () => void;
 }) {
-  const total = (memory?.score ?? 0) + stars.score;
-  const pct = total / 2;
+  const total = (memory?.score ?? 0) + stars.score + (ball?.score ?? 0);
+  const pct = total / 3;
   const grade =
     pct >= 90 ? "فوق‌العاده 🌟"
     : pct >= 75 ? "عالی 🎉"
     : pct >= 55 ? "خیلی خوب 👏"
     : pct >= 35 ? "خوب، ادامه بده 💪"
     : "شروع خوبی بود، تمرین کن 🌱";
-  const unanswered = STARS_ROUNDS - stars.answered;
 
   return (
     <div className="flex flex-1 flex-col items-center justify-center py-8 text-center">
@@ -1400,7 +1878,7 @@ function FinalReport({ memory, stars, onRestart, onBack }: {
 
             <div className="my-3 flex items-end justify-center gap-2" dir="rtl">
               <span className="text-7xl leading-none" style={{ ...DISPLAY, color: COLOR.violet }}>{toFa(total)}</span>
-              <span className="pb-1 text-xl font-black" style={DISPLAY}>از ۲۰۰</span>
+              <span className="pb-1 text-xl font-black" style={DISPLAY}>از ۳۰۰</span>
             </div>
 
             <Chip bg={COLOR.yellow} rotate={-2}>{grade}</Chip>
@@ -1419,15 +1897,16 @@ function FinalReport({ memory, stars, onRestart, onBack }: {
               </ResultBlock>
 
               <ResultBlock icon="⭐" title="ستاره‌ها (دقت و سرعت)" score={stars.score} bg="#FEF9C3">
-                <Chip bg="#ffffff">✅ درست {toFa(stars.correct)} از {toFa(STARS_ROUNDS)}</Chip>
-                <Chip bg="#ffffff">❌ غلط {toFa(stars.wrong)}</Chip>
-                <Chip bg="#ffffff">⏱️ میانگین پاسخ {formatSeconds(stars.averageResponseMs)}</Chip>
-                {unanswered > 0 && <Chip bg={COLOR.pink}>⏰ {toFa(unanswered)} مرحله بی‌پاسخ</Chip>}
+                <RoundsChips m={stars} rounds={STARS_ROUNDS} />
+              </ResultBlock>
+
+              <ResultBlock icon="⚽" title="مسیر توپ (دقت و سرعت)" score={ball?.score ?? 0} bg="#DCFCE7">
+                {ball ? <RoundsChips m={ball} rounds={BALL_ROUNDS} /> : <Chip bg={COLOR.pink}>هنوز مسیر توپ انجام نشده</Chip>}
               </ResultBlock>
             </div>
 
             <p className="mt-4 text-xs font-bold leading-6 text-slate-500">
-              امتیاز هر بازی از ۱۰۰ است و مجموع از ۲۰۰. امتیاز ستاره‌ها از دقت، سرعت پاسخ و نزدیکی جواب‌ها به عدد درست ساخته شده.
+              امتیاز هر بازی از ۱۰۰ است و مجموع از ۳۰۰. امتیاز ستاره‌ها و مسیر توپ از دقت و سرعت پاسخ ساخته شده.
             </p>
           </div>
         </Panel>
@@ -1442,13 +1921,10 @@ function FinalReport({ memory, stars, onRestart, onBack }: {
 }
 
 /*
-  پس‌زمینهٔ رترو:
-  - قبلاً background-position انیمیت می‌شد (هر فریم repaint روی یک المان بزرگ با perspective)؛
-    حالا فقط transform انیمیت می‌شود که روی GPU اجرا می‌شود.
-  - blur-3xl و انیمیشن glow حذف شد.
-  - داخل خود بازی (animate=false) انیمیشن متوقف است.
+  پس‌زمینهٔ رترو: فقط روی منو و صفحه‌های غیربازی رندر می‌شود
+  (داخل بازی اصلاً mount نمی‌شود تا perspective و mask هزینه‌ای نداشته باشند).
 */
-function RetroGrid({ animate }: { animate: boolean }) {
+function RetroGrid() {
   const line = (c: string, dir: string) => `linear-gradient(${dir}${c} 1.5px, transparent 1.5px)`;
 
   return (
@@ -1461,7 +1937,7 @@ function RetroGrid({ animate }: { animate: boolean }) {
           style={{ transform: "translate(-50%, -50%) perspective(520px) rotateX(62deg) scale(1.12)", transformOrigin: "center center" }}
         >
           <div
-            className={`tasvirak-retro-grid absolute -inset-[116px] ${animate ? "" : "tasvirak-paused"}`}
+            className="tasvirak-retro-grid absolute -inset-[116px]"
             style={{
               backgroundImage: `${line("rgba(125,211,252,0.30)", "")}, ${line("rgba(167,139,250,0.22)", "90deg, ")}`,
               backgroundSize: "58px 58px",
@@ -1478,7 +1954,6 @@ function RetroGrid({ animate }: { animate: boolean }) {
           mask-image: radial-gradient(ellipse at center, black 0%, black 52%, rgba(0,0,0,0.75) 68%, transparent 92%);
         }
         .tasvirak-retro-grid { animation: tasvirak-grid 6s linear infinite; will-change: transform; }
-        .tasvirak-paused { animation-play-state: paused; }
         @keyframes tasvirak-grid { to { transform: translate3d(116px, 116px, 0); } }
         @media (max-width: 640px) {
           .tasvirak-retro-zone { height: 62%; width: 125vw; }
@@ -1491,6 +1966,41 @@ function RetroGrid({ animate }: { animate: boolean }) {
   );
 }
 
+// دکمهٔ میان‌بر (ستاره‌ها / مسیر توپ) در بالای منو؛ تا باز نشدن قفل، پیام توضیح نشان می‌دهد
+function Shortcut({ side, unlocked, icon, label, openLabel, lockedLabel, message, showMessage, onClick }: {
+  side: "right" | "left"; unlocked: boolean; icon: string; label: string;
+  openLabel: string; lockedLabel: string; message: string; showMessage: boolean; onClick: () => void;
+}) {
+  const pos = side === "right" ? "right-0" : "left-0";
+  return (
+    <>
+      <button
+        type="button"
+        aria-disabled={!unlocked}
+        onClick={onClick}
+        aria-label={unlocked ? openLabel : lockedLabel}
+        className={`touch-manipulation absolute ${pos} top-2 flex h-12 items-center gap-1.5 rounded-2xl ${BORDER} px-3 text-sm font-black text-[#111827] shadow-[3px_3px_0_#1E1B3A] transition ${
+          unlocked
+            ? "bg-[#FACC15] active:translate-y-1 active:shadow-[1px_1px_0_#1E1B3A]"
+            : "cursor-not-allowed bg-slate-300 opacity-70 grayscale"
+        } ${FOCUS}`}
+      >
+        <span className="text-xl leading-none" aria-hidden>{unlocked ? icon : "🔒"}</span>
+        {label}
+      </button>
+
+      {showMessage && !unlocked && (
+        <div
+          role="alert"
+          className={`absolute ${pos} top-16 z-20 w-60 rounded-2xl ${BORDER} bg-white px-3 py-2 text-right text-xs font-black leading-6 shadow-[3px_3px_0_#1E1B3A]`}
+        >
+          🔒 {message}
+        </div>
+      )}
+    </>
+  );
+}
+
 /* ---------- صفحهٔ اصلی ---------- */
 
 export default function VisualPage() {
@@ -1499,22 +2009,30 @@ export default function VisualPage() {
   const [gameKey, setGameKey] = useState(0);
   const [best, setBest] = useState(0);
   const [gameStartLevel, setGameStartLevel] = useState(1);
+  const [gameStartMs, setGameStartMs] = useState(FIRST_TIME_MS);
+  const [played, setPlayed] = useState(false); // آیا قبلاً بازی را شروع کرده؟
   const [score, setScore] = useState(0);
   const [newRecord, setNewRecord] = useState(false);
   const [starsKey, setStarsKey] = useState(0);
+  const [ballKey, setBallKey] = useState(0);
   const [starsOrigin, setStarsOrigin] = useState<"menu" | "nextTest">("nextTest");
   const [hasMemoryResult, setHasMemoryResult] = useState(false);
+  const [hasStarsResult, setHasStarsResult] = useState(false);
+  const [lockMsg, setLockMsg] = useState<"stars" | "ball" | null>(null);
   const [starsMetrics, setStarsMetrics] = useState<StarsMetrics>({
     correct: 0, wrong: 0, answered: 0, averageResponseMs: 0, score: 0, timedOut: false,
   });
+  const [ballMetrics, setBallMetrics] = useState<BallMetrics | null>(null);
   const [memoryMetrics, setMemoryMetrics] = useState<MemoryMetrics>({
-    errors: 0, replays: 0, attempts: 0, averageResponseMs: 0, totalInputMs: 0, score: 0,
+    errors: 0, replays: 0, attempts: 0, averageResponseMs: 0, score: 0,
   });
 
   useEffect(() => {
     try {
       const saved = Number(localStorage.getItem(BEST_KEY));
       if (saved > 0) setBest(saved);
+      // کاربرانی که قبلاً رکورد دارند هم «بار اول» حساب نمی‌شوند
+      if (saved > 0 || localStorage.getItem(PLAYED_KEY)) setPlayed(true);
     } catch {}
     try {
       const raw = localStorage.getItem(MEMORY_KEY);
@@ -1524,21 +2042,35 @@ export default function VisualPage() {
         setHasMemoryResult(true);
       }
     } catch {}
+    try {
+      const raw = localStorage.getItem(STARS_KEY);
+      const sm = raw ? (JSON.parse(raw) as StarsMetrics) : null;
+      if (sm && typeof sm.score === "number") {
+        setStarsMetrics(sm);
+        setHasStarsResult(true);
+      }
+    } catch {}
   }, []);
+
+  useEffect(() => {
+    if (!lockMsg) return;
+    const id = setTimeout(() => setLockMsg(null), 3500);
+    return () => clearTimeout(id);
+  }, [lockMsg]);
 
   const checkpointLevel = getStageStartLevel(best);
 
-  // دکمهٔ ستاره‌ها فقط بعد از پایان مرحلهٔ ۲۰ تصویرک فعال می‌شود
+  // ستاره‌ها فقط بعد از پایان مرحلهٔ ۲۰ تصویرک؛ مسیر توپ فقط بعد از پایان تصویرک و ستاره‌ها
   const starsUnlocked = best >= LEVELS.length || hasMemoryResult;
-  const [starsLockMsg, setStarsLockMsg] = useState(false);
-
-  useEffect(() => {
-    if (!starsLockMsg) return;
-    const id = setTimeout(() => setStarsLockMsg(false), 3500);
-    return () => clearTimeout(id);
-  }, [starsLockMsg]);
+  const ballUnlocked = starsUnlocked && hasStarsResult;
 
   const launch = (from: number) => {
+    // بار اول ۱۲۰ ثانیه، از بار دوم به بعد (از هر چک‌پوینت) ۶۰ ثانیه
+    setGameStartMs(played ? START_TIME_MS : FIRST_TIME_MS);
+    if (!played) {
+      setPlayed(true);
+      try { localStorage.setItem(PLAYED_KEY, "1"); } catch {}
+    }
     setGameStartLevel(from);
     setGameKey((k) => k + 1);
     setScreen("game");
@@ -1550,8 +2082,27 @@ export default function VisualPage() {
   const goGames = () => router.push("/games");
   const goTutorial = () => setScreen("tutorial");
 
+  const openStars = (origin: "menu" | "nextTest") => {
+    setStarsOrigin(origin);
+    setStarsKey((k) => k + 1);
+    setScreen("stars");
+  };
+
   const handleStarsFinish = useCallback((m: StarsMetrics) => {
     setStarsMetrics(m);
+    // اگر هر ۲۰ مرحلهٔ ستاره‌ها تمام شده باشد، مستقیم وارد مسیر توپ می‌شویم
+    if (!m.timedOut && m.answered >= STARS_ROUNDS) {
+      setHasStarsResult(true);
+      try { localStorage.setItem(STARS_KEY, JSON.stringify(m)); } catch {}
+      setBallKey((k) => k + 1);
+      setScreen("ball");
+    } else {
+      setScreen("final");
+    }
+  }, []);
+
+  const handleBallFinish = useCallback((m: BallMetrics) => {
+    setBallMetrics(m);
     setScreen("final");
   }, []);
 
@@ -1574,6 +2125,8 @@ export default function VisualPage() {
     [best]
   );
 
+  const inGame = screen === "game" || screen === "stars" || screen === "ball";
+
   return (
     <main
       dir="rtl"
@@ -1588,49 +2141,42 @@ export default function VisualPage() {
         paddingBottom: "max(1rem, env(safe-area-inset-bottom))",
       }}
     >
-      <RetroGrid animate={screen !== "game" && screen !== "stars"} />
+      {!inGame && <RetroGrid />}
 
       <div className="relative z-10 flex w-full max-w-md flex-col">
         {screen === "menu" && (
           <div className="relative flex flex-1 flex-col items-center justify-center py-6 text-center">
-            {/* میان‌بر ورود مستقیم به ستاره‌ها */}
-            <button
-              type="button"
-              aria-disabled={!starsUnlocked}
-              onClick={() => {
-                if (!starsUnlocked) {
-                  setStarsLockMsg(true);
-                  return;
-                }
-                setStarsOrigin("menu");
-                setStarsKey((k) => k + 1);
-                setScreen("stars");
-              }}
-              aria-label={starsUnlocked ? "ورود به بازی ستاره‌ها" : "بازی ستاره‌ها قفل است"}
-              className={`touch-manipulation absolute right-0 top-2 flex h-12 items-center gap-1.5 rounded-2xl ${BORDER} px-3 text-sm font-black text-[#111827] shadow-[3px_3px_0_#1E1B3A] transition ${
-                starsUnlocked
-                  ? "bg-[#FACC15] active:translate-y-1 active:shadow-[1px_1px_0_#1E1B3A]"
-                  : "cursor-not-allowed bg-slate-300 opacity-70 grayscale"
-              } ${FOCUS}`}
-            >
-              <span className="text-xl leading-none" aria-hidden>
-                {starsUnlocked ? "⭐" : "🔒"}
-              </span>
-              ستاره‌ها
-            </button>
+            <Shortcut
+              side="right"
+              unlocked={starsUnlocked}
+              icon="⭐"
+              label="ستاره‌ها"
+              openLabel="ورود به بازی ستاره‌ها"
+              lockedLabel="بازی ستاره‌ها قفل است"
+              message="اول باید بازی تصویرک را تا مرحله ۲۰ به پایان برسانی، بعد بازی ستاره‌ها را شروع کنی."
+              showMessage={lockMsg === "stars"}
+              onClick={() => (starsUnlocked ? openStars("menu") : setLockMsg("stars"))}
+            />
 
-            {starsLockMsg && !starsUnlocked && (
-              <div
-                role="alert"
-                className={`absolute right-0 top-16 z-20 w-60 rounded-2xl ${BORDER} bg-white px-3 py-2 text-right text-xs font-black leading-6 shadow-[3px_3px_0_#1E1B3A]`}
-              >
-                🔒 اول باید بازی تصویرک را تا مرحله ۲۰ به پایان برسانی، بعد بازی ستاره‌ها را شروع کنی.
-              </div>
-            )}
+            <Shortcut
+              side="left"
+              unlocked={ballUnlocked}
+              icon="⚽"
+              label="مسیر توپ"
+              openLabel="ورود به بازی مسیر توپ"
+              lockedLabel="بازی مسیر توپ قفل است"
+              message="اول باید بازی تصویرک و بازی ستاره‌ها را تا مرحلهٔ آخر به پایان برسانی، بعد مسیر توپ باز می‌شود."
+              showMessage={lockMsg === "ball"}
+              onClick={() => {
+                if (!ballUnlocked) return setLockMsg("ball");
+                setBallKey((k) => k + 1);
+                setScreen("ball");
+              }}
+            />
 
             <HeroFan />
 
-            <h1 className="mt-8 text-7xl leading-none text-white" style={{ ...DISPLAY, textShadow: `4px 4px 0 ${INK}` }}>تصویرک</h1>
+            <h1 className="mt-8 text-7xl leading-none text-white" style={TITLE_SHADOW(4)}>تصویرک</h1>
 
             <p className="mt-4 max-w-[16rem] text-base font-bold leading-7 text-white">ترتیب کارت‌ها رو حفظ کن و به همون ترتیب بزن.</p>
 
@@ -1650,33 +2196,31 @@ export default function VisualPage() {
 
         {screen === "tutorial" && <Tutorial onStart={startGame} onBack={() => setScreen("menu")} />}
 
-        {screen === "game" && <Game key={gameKey} initialLevel={gameStartLevel} onOver={handleOver} onExit={exitGame} />}
+        {screen === "game" && (
+          <Game key={gameKey} initialLevel={gameStartLevel} startMs={gameStartMs} onOver={handleOver} onExit={exitGame} />
+        )}
 
         {screen === "nextTest" && (
-          <DoctorNextTest
-            metrics={memoryMetrics}
-            onStartStars={() => {
-              setStarsOrigin("nextTest");
-              setStarsKey((k) => k + 1);
-              setScreen("stars");
-            }}
-            onBack={goGames}
-          />
+          <DoctorNextTest metrics={memoryMetrics} onStartStars={() => openStars("nextTest")} onBack={goGames} />
         )}
 
         {screen === "stars" && (
           <StarsGame key={starsKey} onFinish={handleStarsFinish} onExit={() => setScreen(starsOrigin)} />
         )}
 
+        {screen === "ball" && (
+          <BallGame key={ballKey} onFinish={handleBallFinish} onExit={() => setScreen("menu")} />
+        )}
+
         {screen === "final" && (
-          <FinalReport memory={hasMemoryResult ? memoryMetrics : null} stars={starsMetrics} onRestart={startGameFromBeginning} onBack={goGames} />
+          <FinalReport memory={hasMemoryResult ? memoryMetrics : null} stars={starsMetrics} ball={ballMetrics} onRestart={startGameFromBeginning} onBack={goGames} />
         )}
 
         {screen === "over" && (
           <div className="flex flex-1 flex-col items-center justify-center py-6 text-center">
             <div className={`flex h-24 w-24 items-center justify-center rounded-full ${BORDER} bg-[#FFD43B] text-5xl shadow-[4px_4px_0_#1E1B3A]`}>⏰</div>
 
-            <h1 className="mt-6 text-5xl text-white" style={{ ...DISPLAY, textShadow: `3px 3px 0 ${INK}` }}>وقت تموم شد!</h1>
+            <h1 className="mt-6 text-5xl text-white" style={TITLE_SHADOW(3)}>وقت تموم شد!</h1>
 
             <Panel className="mt-6 w-full max-w-xs">
               <p className="text-sm font-black text-slate-500">مرحله‌های کامل‌شده</p>
